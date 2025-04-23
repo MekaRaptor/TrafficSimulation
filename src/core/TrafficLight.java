@@ -1,7 +1,7 @@
 package core;
 
 public class TrafficLight extends Thread {
-    private enum State { GREEN, YELLOW, RED }
+    public static enum State { GREEN, YELLOW, RED }
     private State state = State.RED;
 
     @Override
