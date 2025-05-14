@@ -1,5 +1,3 @@
-package core;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -7,10 +5,12 @@ public class Road {
     private final String id;
     private final List<Vehicle> vehicles = new ArrayList<>();
     private final int capacity;
+    private final CityMap.Direction direction;
 
-    public Road(String id, int capacity) {
+    public Road(String id, int capacity, CityMap.Direction direction) {
         this.id = id;
         this.capacity = capacity;
+        this.direction = direction;
     }
 
     public synchronized boolean addVehicle(Vehicle v) {
@@ -35,5 +35,13 @@ public class Road {
 
     public synchronized int getVehicleCount() {
         return vehicles.size();
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    public CityMap.Direction getDirection() {
+        return direction;
     }
 }
