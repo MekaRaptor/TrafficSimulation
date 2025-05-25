@@ -20,6 +20,7 @@ import javafx.scene.effect.Light;
 import javafx.scene.effect.Lighting;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.scene.image.Image;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
@@ -39,6 +40,8 @@ public class TrafficSimulationGUI extends Application {
     private Label statsLabel;
     private boolean showRoutes = true;
     private boolean nightMode = false;
+    private AssetManager assetManager;
+    private String assetMode = "AUTO"; // AUTO, FORCE, DISABLE
     
     private static class VehicleInfo {
         double x, y;
@@ -90,6 +93,9 @@ public class TrafficSimulationGUI extends Application {
     
     @Override
     public void start(Stage primaryStage) {
+        // Initialize AssetManager
+        assetManager = AssetManager.getInstance();
+        
         BorderPane root = new BorderPane();
         
         // Control panel
@@ -221,29 +227,63 @@ public class TrafficSimulationGUI extends Application {
             routesButton.setText(showRoutes ? "Hide Routes" : "Show Routes");
         });
         
-        Button nightModeButton = new Button("Night Mode");
-        nightModeButton.setStyle("-fx-background-color: #607D8B; -fx-text-fill: white;");
+        Button nightModeButton = new Button("Night Mode: OFF");
+        nightModeButton.setStyle("-fx-background-color: #9C27B0; -fx-text-fill: white;");
+        
+        Button showRoutesButton = new Button("Routes: ON");
+        showRoutesButton.setStyle("-fx-background-color: #607D8B; -fx-text-fill: white;");
+        
+        Button assetModeButton = new Button("Assets: AUTO");
+        assetModeButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
+        
+        // Asset status button
+        Button assetStatusButton = new Button("Check Assets");
+        assetStatusButton.setStyle("-fx-background-color: #795548; -fx-text-fill: white;");
+        assetStatusButton.setOnAction(e -> {
+            showAssetStatus();
+        });
+        
+        HBox assetControls = new HBox(5, assetModeButton, assetStatusButton);
+        assetControls.setAlignment(Pos.CENTER);
+        
+        HBox toggleButtons = new HBox(5, nightModeButton, showRoutesButton);
+        toggleButtons.setAlignment(Pos.CENTER);
+        
         nightModeButton.setOnAction(e -> {
             nightMode = !nightMode;
-            nightModeButton.setText(nightMode ? "Day Mode" : "Night Mode");
-            if (nightMode) {
-                panel.setStyle("-fx-background-color: #333333; -fx-border-color: #555555; -fx-border-width: 1px;");
-                titleLabel.setStyle("-fx-text-fill: #ffffff;");
-                gridLabel.setStyle("-fx-text-fill: #ffffff;");
-                vehicleLabel.setStyle("-fx-text-fill: #ffffff;");
-                speedLabel.setStyle("-fx-text-fill: #ffffff;");
-                statsLabel.setStyle("-fx-text-fill: #ffffff; -fx-background-color: #333333;");
+            nightModeButton.setText("Night Mode: " + (nightMode ? "ON" : "OFF"));
+            nightModeButton.setStyle(nightMode ? 
+                "-fx-background-color: #3F51B5; -fx-text-fill: white;" : 
+                "-fx-background-color: #9C27B0; -fx-text-fill: white;");
+        });
+        
+        showRoutesButton.setOnAction(e -> {
+            showRoutes = !showRoutes;
+            showRoutesButton.setText("Routes: " + (showRoutes ? "ON" : "OFF"));
+            showRoutesButton.setStyle(showRoutes ? 
+                "-fx-background-color: #4CAF50; -fx-text-fill: white;" : 
+                "-fx-background-color: #607D8B; -fx-text-fill: white;");
+        });
+        
+        assetModeButton.setOnAction(e -> {
+            // Toggle through different asset modes: AUTO -> FORCE -> DISABLE -> AUTO
+            String currentText = assetModeButton.getText();
+            if (currentText.contains("AUTO")) {
+                assetMode = "FORCE";
+                assetModeButton.setText("Assets: FORCE");
+                assetModeButton.setStyle("-fx-background-color: #4CAF50; -fx-text-fill: white;");
+            } else if (currentText.contains("FORCE")) {
+                assetMode = "DISABLE";
+                assetModeButton.setText("Assets: DISABLE");
+                assetModeButton.setStyle("-fx-background-color: #f44336; -fx-text-fill: white;");
             } else {
-                panel.setStyle("-fx-background-color: #f0f0f0; -fx-border-color: #cccccc; -fx-border-width: 1px;");
-                titleLabel.setStyle("-fx-text-fill: #333333;");
-                gridLabel.setStyle("");
-                vehicleLabel.setStyle("");
-                speedLabel.setStyle("");
-                statsLabel.setStyle("-fx-background-color: #e0e0e0;");
+                assetMode = "AUTO";
+                assetModeButton.setText("Assets: AUTO");
+                assetModeButton.setStyle("-fx-background-color: #FF9800; -fx-text-fill: white;");
             }
         });
         
-        visualOptions.getChildren().addAll(routesButton, nightModeButton);
+        visualOptions.getChildren().addAll(routesButton, toggleButtons, assetControls);
         
         panel.getChildren().addAll(
             titleLabel,
@@ -407,6 +447,9 @@ public class TrafficSimulationGUI extends Application {
             gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
         }
         
+        // Draw environment background (buildings, trees, grass)
+        drawEnvironment();
+        
         // Draw grid
         gc.setStroke(nightMode ? Color.rgb(70, 70, 80) : Color.GRAY);
         gc.setLineWidth(1);
@@ -439,13 +482,31 @@ public class TrafficSimulationGUI extends Application {
             }
         }
         
-        // Draw intersections
-        gc.setFill(nightMode ? Color.rgb(50, 50, 60) : Color.DARKGRAY);
+        // Draw intersections with enhanced visuals
         for (int i = 0; i < gridSize; i++) {
             for (int j = 0; j < gridSize; j++) {
                 double x = j * CELL_SIZE * 2 + CELL_SIZE - PADDING;
                 double y = i * CELL_SIZE * 2 + CELL_SIZE - PADDING;
+                
+                // Light intersection color to match roads
+                gc.setFill(nightMode ? Color.rgb(65, 65, 70) : Color.rgb(185, 185, 190));
                 gc.fillRect(x, y, PADDING * 2, PADDING * 2);
+                
+                // Add subtle crosswalk markings
+                gc.setStroke(nightMode ? Color.rgb(180, 180, 180, 0.5) : Color.rgb(255, 255, 255, 0.6));
+                gc.setLineWidth(1);
+                
+                // Horizontal crosswalk stripes
+                for (int stripe = 0; stripe < 3; stripe++) {
+                    double stripeY = y + 3 + stripe * 4;
+                    gc.strokeLine(x, stripeY, x + PADDING * 2, stripeY);
+                }
+                
+                // Vertical crosswalk stripes
+                for (int stripe = 0; stripe < 3; stripe++) {
+                    double stripeX = x + 3 + stripe * 4;
+                    gc.strokeLine(stripeX, y, stripeX, y + PADDING * 2);
+                }
             }
         }
         
@@ -458,40 +519,166 @@ public class TrafficSimulationGUI extends Application {
         drawVehicles();
     }
     
+    private void drawEnvironment() {
+        // Draw grass background in empty areas (less overwhelming)
+        Image grassImage = assetManager.getImage("grass");
+        if (grassImage != null && assetManager.hasImage("grass")) {
+            for (int i = 0; i < gridSize; i++) {
+                for (int j = 0; j < gridSize; j++) {
+                    double x = j * CELL_SIZE * 2;
+                    double y = i * CELL_SIZE * 2;
+                    
+                    // Draw grass in corners of each cell with some spacing
+                    double grassSize = CELL_SIZE - 15;
+                    double offset = 8;
+                    
+                    // Only draw grass in specific corners to avoid clutter
+                    if ((i + j) % 2 == 0) {
+                        gc.drawImage(grassImage, x + offset, y + offset, grassSize, grassSize);
+                        gc.drawImage(grassImage, x + CELL_SIZE + offset, y + CELL_SIZE + offset, grassSize, grassSize);
+                    } else {
+                        gc.drawImage(grassImage, x + CELL_SIZE + offset, y + offset, grassSize, grassSize);
+                        gc.drawImage(grassImage, x + offset, y + CELL_SIZE + offset, grassSize, grassSize);
+                    }
+                }
+            }
+        }
+        
+        // Draw buildings around the edges (more organized)
+        Image buildingImage = assetManager.getImage("building");
+        Image apartmentsImage = assetManager.getImage("apartments");
+        
+        if (buildingImage != null || apartmentsImage != null) {
+            // Buildings on left and right sides only
+            for (int i = 0; i < gridSize; i += 2) { // Skip every other position
+                // Left side buildings
+                if (buildingImage != null && assetManager.hasImage("building")) {
+                    gc.drawImage(buildingImage, -35, i * CELL_SIZE * 2 + 15, 30, 45);
+                }
+                
+                // Right side buildings  
+                if (apartmentsImage != null && assetManager.hasImage("apartments")) {
+                    gc.drawImage(apartmentsImage, gridSize * CELL_SIZE * 2 + 5, i * CELL_SIZE * 2 + 15, 30, 45);
+                }
+            }
+        }
+        
+        // Draw trees more selectively
+        Image treeImage = assetManager.getImage("tree");
+        if (treeImage != null && assetManager.hasImage("tree")) {
+            // Add trees only in specific locations
+            for (int i = 0; i < gridSize; i++) {
+                for (int j = 0; j < gridSize; j++) {
+                    // Much more selective tree placement
+                    if ((i + j * 2) % 6 == 0) { 
+                        double x = j * CELL_SIZE * 2 + 12;
+                        double y = i * CELL_SIZE * 2 + 12;
+                        gc.drawImage(treeImage, x, y, 16, 20);
+                    }
+                }
+            }
+        }
+        
+        // Draw skyline background (less prominent)
+        Image skylineImage = assetManager.getImage("skyline");
+        if (skylineImage != null && assetManager.hasImage("skyline")) {
+            // Draw skyline as subtle background
+            double skylineY = nightMode ? -45 : -35;
+            double skylineOpacity = nightMode ? 0.6 : 0.4;
+            
+            gc.setGlobalAlpha(skylineOpacity);
+            for (int i = 0; i < 2; i++) {
+                gc.drawImage(skylineImage, i * 150, skylineY, 160, 30);
+            }
+            gc.setGlobalAlpha(1.0); // Reset opacity
+        }
+    }
+    
     private void drawRoad(String roadId, double x, double y, double width, double height, boolean isHorizontal) {
         Road road = cityMap.getRoadById(roadId);
         if (road != null) {
-            // Road color based on congestion
-            double congestion = (double) road.getVehicleCount() / road.getCapacity();
-            Color roadColor = getCongestionColor(congestion);
-            gc.setFill(roadColor);
-            gc.fillRect(x, y, width, height);
+            // Try to use road assets first
+            String assetName = isHorizontal ? "road_horizontal" : "road_vertical";
+            Image roadImage = assetManager.getImage(assetName);
             
-            // Draw road markings
-            gc.setStroke(nightMode ? Color.rgb(180, 180, 180, 0.5) : Color.WHITE);
-            gc.setLineWidth(1);
-            
-            if (isHorizontal) {
-                // Dashed line in the middle of horizontal road
-                double dashLength = 5;
-                double gapLength = 5;
-                double startX = x;
-                double middleY = y + height / 2;
-                
-                for (double i = 0; i < width; i += dashLength + gapLength) {
-                    gc.strokeLine(startX + i, middleY, startX + i + dashLength, middleY);
-                }
+            if (roadImage != null && assetManager.hasImage(assetName)) {
+                // Draw using road asset
+                drawRoadWithAsset(roadImage, x, y, width, height, road);
             } else {
-                // Dashed line in the middle of vertical road
-                double dashLength = 5;
-                double gapLength = 5;
-                double middleX = x + width / 2;
-                double startY = y;
-                
-                for (double i = 0; i < height; i += dashLength + gapLength) {
-                    gc.strokeLine(middleX, startY + i, middleX, startY + i + dashLength);
-                }
+                // Fallback to enhanced shape-based drawing
+                drawRoadWithShapes(x, y, width, height, isHorizontal, road);
             }
+        }
+    }
+    
+    private void drawRoadWithAsset(Image roadImage, double x, double y, double width, double height, Road road) {
+        // Calculate congestion overlay
+        double congestion = (double) road.getVehicleCount() / road.getCapacity();
+        
+        // Draw the road asset
+        gc.drawImage(roadImage, x, y, width, height);
+        
+        // Add congestion overlay if needed
+        if (congestion > 0.2) {
+            Color congestionColor = getCongestionColor(congestion);
+            gc.setFill(congestionColor);
+            gc.fillRect(x, y, width, height);
+        }
+    }
+    
+    private void drawRoadWithShapes(double x, double y, double width, double height, boolean isHorizontal, Road road) {
+        // Enhanced version of original road drawing with lighter colors for better vehicle contrast
+        double congestion = (double) road.getVehicleCount() / road.getCapacity();
+        
+        // Lighter road base color so vehicles stand out more
+        Color baseRoadColor = nightMode ? Color.rgb(60, 60, 65) : Color.rgb(180, 180, 185);
+        gc.setFill(baseRoadColor);
+        gc.fillRect(x, y, width, height);
+        
+        // Add congestion overlay if needed
+        if (congestion > 0.2) {
+            Color congestionColor = getCongestionColor(congestion);
+            gc.setFill(congestionColor);
+            gc.fillRect(x, y, width, height);
+        }
+        
+        // Draw road markings with subtle contrast
+        gc.setStroke(nightMode ? Color.rgb(200, 200, 200, 0.7) : Color.rgb(255, 255, 255, 0.8));
+        gc.setLineWidth(2);
+        
+        if (isHorizontal) {
+            // Enhanced dashed line in the middle of horizontal road
+            double dashLength = 8;
+            double gapLength = 6;
+            double startX = x;
+            double middleY = y + height / 2;
+            
+            for (double i = 0; i < width; i += dashLength + gapLength) {
+                gc.strokeLine(startX + i, middleY, startX + i + dashLength, middleY);
+            }
+            
+            // Add subtle side borders
+            gc.setStroke(nightMode ? Color.rgb(200, 200, 200, 0.3) : Color.rgb(255, 255, 255, 0.4));
+            gc.setLineWidth(1);
+            gc.strokeLine(x, y + 2, x + width, y + 2);
+            gc.strokeLine(x, y + height - 2, x + width, y + height - 2);
+            
+        } else {
+            // Enhanced dashed line in the middle of vertical road
+            double dashLength = 8;
+            double gapLength = 6;
+            double middleX = x + width / 2;
+            double startY = y;
+            
+            for (double i = 0; i < height; i += dashLength + gapLength) {
+                gc.strokeLine(middleX, startY + i, middleX, startY + i + dashLength);
+            }
+            
+            // Add subtle side borders
+            gc.setStroke(nightMode ? Color.rgb(200, 200, 200, 0.3) : Color.rgb(255, 255, 255, 0.4));
+            gc.setLineWidth(1);
+            gc.strokeLine(x + 2, y, x + 2, y + height);
+            gc.strokeLine(x + width - 2, y, x + width - 2, y + height);
         }
     }
     
@@ -515,64 +702,178 @@ public class TrafficSimulationGUI extends Application {
             VehicleInfo info = vehicleInfoMap.get(vehicleId);
             
             if (info != null && vehicle.getCurrentRoad() != null) {
-                // Create glowing effect for vehicles
-                DropShadow glow = new DropShadow();
-                glow.setColor(info.color);
-                glow.setRadius(VEHICLE_SIZE);
-                
-                // Draw vehicle with glow effect
-                gc.setEffect(glow);
-                gc.setFill(info.color);
-                
-                // Draw different vehicle types with distinct shapes
+                // Get vehicle type and corresponding asset
                 Vehicle.VehicleType type = vehicle.getVehicleType();
-                double size = VEHICLE_SIZE;
+                String assetName = getAssetNameForVehicleType(type);
+                Image vehicleImage = assetManager.getImage(assetName);
                 
-                switch (type) {
-                    case CAR:
-                        // Draw car (circle)
-                        gc.fillOval(info.x - size/2, info.y - size/2, size, size);
-                        break;
-                    case TRUCK:
-                        // Draw truck (rectangle)
-                        size *= 1.4;
-                        gc.fillRect(info.x - size/2, info.y - size/3, size, size*0.7);
-                        break;
-                    case MOTORCYCLE:
-                        // Draw motorcycle (diamond)
-                        size *= 0.8;
-                        double[] xPoints = {info.x, info.x + size/2, info.x, info.x - size/2};
-                        double[] yPoints = {info.y - size/2, info.y, info.y + size/2, info.y};
-                        gc.fillPolygon(xPoints, yPoints, 4);
-                        break;
-                    case BUS:
-                        // Draw bus (rounded rectangle)
-                        size *= 1.6;
-                        gc.fillRoundRect(info.x - size/2, info.y - size/3, size, size*0.6, 4, 4);
-                        break;
+                if (shouldUseAssets(assetName) && vehicleImage != null) {
+                    // Draw vehicle using asset
+                    drawVehicleWithAsset(info, vehicleImage, type, vehicle);
+                } else {
+                    // Fallback to original shape-based drawing with enhanced visuals
+                    drawVehicleWithShapes(info, type, vehicle);
                 }
-                
-                // Reset effect
-                gc.setEffect(null);
                 
                 // Draw speed indicator
                 if (vehicle.getSpeed() > 1.1) {
-                    // Fast vehicles have motion lines
-                    gc.setStroke(info.color);
-                    gc.setLineWidth(1);
-                    double speedLineLength = vehicle.getSpeed() * 5;
-                    
-                    Road currentRoad = vehicle.getCurrentRoad();
-                    if (currentRoad != null) {
-                        String roadId = currentRoad.getId();
-                        boolean isHorizontal = roadId.startsWith("R");
-                        
-                        if (isHorizontal) {
-                            gc.strokeLine(info.x - speedLineLength, info.y, info.x - speedLineLength/2, info.y);
-                        } else {
-                            gc.strokeLine(info.x, info.y - speedLineLength, info.x, info.y - speedLineLength/2);
-                        }
-                    }
+                    drawSpeedIndicator(info, vehicle);
+                }
+            }
+        }
+    }
+    
+    private String getAssetNameForVehicleType(Vehicle.VehicleType type) {
+        switch (type) {
+            case CAR: return "car";
+            case TRUCK: return "truck";
+            case MOTORCYCLE: return "motorcycle";
+            case BUS: return "bus";
+            default: return "car";
+        }
+    }
+    
+    private void drawVehicleWithAsset(VehicleInfo info, Image vehicleImage, Vehicle.VehicleType type, Vehicle vehicle) {
+        // Calculate vehicle size based on type
+        double size = VEHICLE_SIZE;
+        switch (type) {
+            case TRUCK: size *= 1.4; break;
+            case MOTORCYCLE: size *= 0.8; break;
+            case BUS: size *= 1.6; break;
+            default: size *= 1.0; break;
+        }
+        
+        // Add glow effect
+        DropShadow glow = new DropShadow();
+        glow.setColor(info.color);
+        glow.setRadius(size * 0.8);
+        gc.setEffect(glow);
+        
+        // Calculate rotation based on road direction
+        Road currentRoad = vehicle.getCurrentRoad();
+        double rotation = 0;
+        if (currentRoad != null) {
+            String roadId = currentRoad.getId();
+            if (roadId.startsWith("R")) {
+                rotation = 0; // Horizontal road
+            } else {
+                rotation = 90; // Vertical road
+            }
+        }
+        
+        // Save graphics context
+        gc.save();
+        
+        // Apply rotation
+        gc.translate(info.x, info.y);
+        gc.rotate(rotation);
+        
+        // Draw the vehicle image
+        gc.drawImage(vehicleImage, -size/2, -size/2, size, size);
+        
+        // Restore graphics context
+        gc.restore();
+        gc.setEffect(null);
+    }
+    
+    private void drawVehicleWithShapes(VehicleInfo info, Vehicle.VehicleType type, Vehicle vehicle) {
+        // Enhanced version of original shape-based drawing
+        DropShadow glow = new DropShadow();
+        glow.setColor(info.color);
+        glow.setRadius(VEHICLE_SIZE);
+        
+        gc.setEffect(glow);
+        gc.setFill(info.color);
+        
+        double size = VEHICLE_SIZE;
+        
+        switch (type) {
+            case CAR:
+                // Enhanced car with direction indicator
+                gc.fillOval(info.x - size/2, info.y - size/2, size, size);
+                // Add direction indicator
+                gc.setFill(Color.WHITE);
+                Road currentRoad = vehicle.getCurrentRoad();
+                if (currentRoad != null && currentRoad.getId().startsWith("R")) {
+                    // Horizontal direction indicator
+                    gc.fillRect(info.x + size/4, info.y - 1, size/4, 2);
+                } else {
+                    // Vertical direction indicator  
+                    gc.fillRect(info.x - 1, info.y + size/4, 2, size/4);
+                }
+                break;
+            case TRUCK:
+                size *= 1.4;
+                // Enhanced truck with cab and trailer
+                gc.fillRect(info.x - size/2, info.y - size/3, size, size*0.7);
+                // Cab detail
+                gc.setFill(info.color.darker());
+                gc.fillRect(info.x + size/3, info.y - size/4, size/6, size/2);
+                break;
+            case MOTORCYCLE:
+                size *= 0.8;
+                // Enhanced motorcycle with rider silhouette
+                double[] xPoints = {info.x, info.x + size/2, info.x, info.x - size/2};
+                double[] yPoints = {info.y - size/2, info.y, info.y + size/2, info.y};
+                gc.fillPolygon(xPoints, yPoints, 4);
+                // Rider detail
+                gc.setFill(Color.DARKGRAY);
+                gc.fillOval(info.x - size/6, info.y - size/3, size/3, size/3);
+                break;
+            case BUS:
+                size *= 1.6;
+                // Enhanced bus with windows
+                gc.fillRoundRect(info.x - size/2, info.y - size/3, size, size*0.6, 4, 4);
+                // Windows
+                gc.setFill(Color.LIGHTBLUE);
+                for (int i = 0; i < 3; i++) {
+                    double windowX = info.x - size/3 + i * size/4;
+                    gc.fillRect(windowX, info.y - size/6, size/6, size/4);
+                }
+                break;
+        }
+        
+        gc.setEffect(null);
+    }
+    
+    private void drawSpeedIndicator(VehicleInfo info, Vehicle vehicle) {
+        // Enhanced speed lines with particle effect
+        gc.setStroke(info.color);
+        gc.setLineWidth(1);
+        double speedLineLength = vehicle.getSpeed() * 5;
+        
+        Road currentRoad = vehicle.getCurrentRoad();
+        if (currentRoad != null) {
+            String roadId = currentRoad.getId();
+            boolean isHorizontal = roadId.startsWith("R");
+            
+            // Multiple speed lines for better effect
+            for (int i = 0; i < 3; i++) {
+                double offset = i * 2;
+                double opacity = 1.0 - (i * 0.3);
+                
+                Color speedColor = Color.rgb(
+                    (int)(info.color.getRed() * 255),
+                    (int)(info.color.getGreen() * 255),
+                    (int)(info.color.getBlue() * 255),
+                    opacity
+                );
+                gc.setStroke(speedColor);
+                
+                if (isHorizontal) {
+                    gc.strokeLine(
+                        info.x - speedLineLength - offset, 
+                        info.y + (i-1), 
+                        info.x - speedLineLength/2 - offset, 
+                        info.y + (i-1)
+                    );
+                } else {
+                    gc.strokeLine(
+                        info.x + (i-1), 
+                        info.y - speedLineLength - offset, 
+                        info.x + (i-1), 
+                        info.y - speedLineLength/2 - offset
+                    );
                 }
             }
         }
@@ -605,41 +906,196 @@ public class TrafficSimulationGUI extends Application {
         if (road != null) {
             TrafficLight light = cityMap.getTrafficLightForRoad(road);
             if (light != null) {
-                Color color;
-                switch (light.getTrafficLightState()) {
-                    case GREEN -> color = Color.rgb(0, 255, 0);
-                    case YELLOW -> color = Color.rgb(255, 255, 0);
-                    default -> color = Color.rgb(255, 0, 0);
-                }
+                // Get appropriate traffic light asset
+                String assetName = getTrafficLightAssetName(light.getTrafficLightState());
+                Image lightImage = assetManager.getImage(assetName);
                 
-                // Apply brightness adjustment for blinking effect
-                double brightness = light.getBrightness();
-                color = color.deriveColor(0, 1.0, brightness, 1.0);
-                
-                // Create glow effect for traffic lights
-                Glow glow = new Glow();
-                glow.setLevel(0.8 * brightness);
-                
-                // Add emergency effect
-                if (light.isEmergencyMode()) {
-                    DropShadow emergencyEffect = new DropShadow();
-                    emergencyEffect.setColor(Color.YELLOW);
-                    emergencyEffect.setRadius(PADDING);
-                    emergencyEffect.setSpread(0.7);
-                    gc.setEffect(emergencyEffect);
+                if (lightImage != null && assetManager.hasImage(assetName)) {
+                    // Draw using asset
+                    drawTrafficLightWithAsset(lightImage, x, y, light);
                 } else {
-                    gc.setEffect(glow);
+                    // Fallback to enhanced shape-based drawing
+                    drawTrafficLightWithShapes(x, y, light);
                 }
-                
-                gc.setFill(color);
-                gc.fillOval(x - PADDING / 2, y - PADDING / 2, PADDING, PADDING);
-                gc.setEffect(null);
-                
-                // Draw light housing
-                gc.setStroke(nightMode ? Color.rgb(100, 100, 100) : Color.BLACK);
-                gc.setLineWidth(1);
-                gc.strokeOval(x - PADDING / 2, y - PADDING / 2, PADDING, PADDING);
             }
+        }
+    }
+    
+    private String getTrafficLightAssetName(TrafficLight.State state) {
+        switch (state) {
+            case GREEN: return "traffic_light_green";
+            case YELLOW: return "traffic_light_yellow";
+            case RED: return "traffic_light_red";
+            default: return "traffic_light_red";
+        }
+    }
+    
+    private void drawTrafficLightWithAsset(Image lightImage, double x, double y, TrafficLight light) {
+        // Apply brightness effect
+        double brightness = light.getBrightness();
+        
+        // Create glow effect
+        Glow glow = new Glow();
+        glow.setLevel(0.8 * brightness);
+        
+        // Add emergency effect if needed
+        if (light.isEmergencyMode()) {
+            DropShadow emergencyEffect = new DropShadow();
+            emergencyEffect.setColor(Color.YELLOW);
+            emergencyEffect.setRadius(PADDING * 2);
+            emergencyEffect.setSpread(0.7);
+            gc.setEffect(emergencyEffect);
+        } else {
+            gc.setEffect(glow);
+        }
+        
+        // Draw the traffic light image
+        double size = PADDING * 2;
+        gc.drawImage(lightImage, x - size/2, y - size/2, size, size);
+        gc.setEffect(null);
+    }
+    
+    private void drawTrafficLightWithShapes(double x, double y, TrafficLight light) {
+        // Enhanced shape-based traffic light with housing
+        Color color;
+        switch (light.getTrafficLightState()) {
+            case GREEN -> color = Color.rgb(0, 255, 0);
+            case YELLOW -> color = Color.rgb(255, 255, 0);
+            default -> color = Color.rgb(255, 0, 0);
+        }
+        
+        // Apply brightness adjustment for blinking effect
+        double brightness = light.getBrightness();
+        color = color.deriveColor(0, 1.0, brightness, 1.0);
+        
+        // Draw traffic light housing (background)
+        gc.setFill(nightMode ? Color.rgb(30, 30, 30) : Color.rgb(60, 60, 60));
+        gc.fillRoundRect(x - PADDING, y - PADDING * 1.5, PADDING * 2, PADDING * 3, 4, 4);
+        
+        // Draw all three light positions
+        double lightRadius = PADDING * 0.3;
+        
+        // Red light position (top)
+        gc.setFill(light.getTrafficLightState() == TrafficLight.State.RED ? 
+            color : Color.rgb(80, 0, 0));
+        gc.fillOval(x - lightRadius, y - PADDING, lightRadius * 2, lightRadius * 2);
+        
+        // Yellow light position (middle)
+        gc.setFill(light.getTrafficLightState() == TrafficLight.State.YELLOW ? 
+            color : Color.rgb(80, 80, 0));
+        gc.fillOval(x - lightRadius, y - lightRadius, lightRadius * 2, lightRadius * 2);
+        
+        // Green light position (bottom)
+        gc.setFill(light.getTrafficLightState() == TrafficLight.State.GREEN ? 
+            color : Color.rgb(0, 80, 0));
+        gc.fillOval(x - lightRadius, y, lightRadius * 2, lightRadius * 2);
+        
+        // Create glow effect for active light
+        Glow glow = new Glow();
+        glow.setLevel(0.8 * brightness);
+        
+        // Add emergency effect
+        if (light.isEmergencyMode()) {
+            DropShadow emergencyEffect = new DropShadow();
+            emergencyEffect.setColor(Color.YELLOW);
+            emergencyEffect.setRadius(PADDING);
+            emergencyEffect.setSpread(0.7);
+            gc.setEffect(emergencyEffect);
+        } else {
+            gc.setEffect(glow);
+        }
+        
+        // Redraw the active light with glow
+        gc.setFill(color);
+        switch (light.getTrafficLightState()) {
+            case RED -> gc.fillOval(x - lightRadius, y - PADDING, lightRadius * 2, lightRadius * 2);
+            case YELLOW -> gc.fillOval(x - lightRadius, y - lightRadius, lightRadius * 2, lightRadius * 2);
+            case GREEN -> gc.fillOval(x - lightRadius, y, lightRadius * 2, lightRadius * 2);
+        }
+        
+        gc.setEffect(null);
+        
+        // Draw housing outline
+        gc.setStroke(nightMode ? Color.rgb(100, 100, 100) : Color.BLACK);
+        gc.setLineWidth(1);
+        gc.strokeRoundRect(x - PADDING, y - PADDING * 1.5, PADDING * 2, PADDING * 3, 4, 4);
+    }
+    
+    private void showAssetStatus() {
+        StringBuilder status = new StringBuilder();
+        status.append("🎨 ASSET STATUS REPORT\n");
+        status.append("========================\n\n");
+        
+        // Vehicle assets
+        status.append("🚗 VEHICLES:\n");
+        String[] vehicles = {"car", "truck", "motorcycle", "bus"};
+        for (String vehicle : vehicles) {
+            boolean hasAsset = assetManager.hasImage(vehicle);
+            status.append(String.format("  %s %s\n", 
+                hasAsset ? "✅" : "❌", 
+                vehicle + (hasAsset ? " - LOADED" : " - MISSING (using shapes)")));
+        }
+        
+        status.append("\n🛣️ ROADS:\n");
+        String[] roads = {"road_horizontal", "road_vertical", "intersection"};
+        for (String road : roads) {
+            boolean hasAsset = assetManager.hasImage(road);
+            status.append(String.format("  %s %s\n", 
+                hasAsset ? "✅" : "❌", 
+                road + (hasAsset ? " - LOADED" : " - MISSING (using shapes)")));
+        }
+        
+        status.append("\n🚦 TRAFFIC LIGHTS:\n");
+        String[] lights = {"traffic_light_red", "traffic_light_yellow", "traffic_light_green"};
+        for (String light : lights) {
+            boolean hasAsset = assetManager.hasImage(light);
+            status.append(String.format("  %s %s\n", 
+                hasAsset ? "✅" : "❌", 
+                light + (hasAsset ? " - LOADED" : " - MISSING (using enhanced shapes)")));
+        }
+        
+        // Count total loaded assets
+        int totalLoaded = 0;
+        int totalAssets = vehicles.length + roads.length + lights.length;
+        for (String asset : vehicles) if (assetManager.hasImage(asset)) totalLoaded++;
+        for (String asset : roads) if (assetManager.hasImage(asset)) totalLoaded++;
+        for (String asset : lights) if (assetManager.hasImage(asset)) totalLoaded++;
+        
+        status.append(String.format("\n📊 SUMMARY: %d/%d assets loaded (%.1f%%)\n", 
+            totalLoaded, totalAssets, (totalLoaded * 100.0 / totalAssets)));
+        
+        if (totalLoaded > 0) {
+            status.append("\n🎮 Assets are working! You should see improved graphics in the simulation.");
+        } else {
+            status.append("\n💡 No assets loaded. Using enhanced shape-based graphics.");
+            status.append("\n   To use assets, check that files are in the assets/ folders with correct names.");
+        }
+        
+        // Show in a simple dialog (using console for now)
+        System.out.println("\n" + status.toString());
+        
+        // Update stats label to show asset status briefly
+        String originalText = statsLabel.getText();
+        statsLabel.setText("Asset Status: " + totalLoaded + "/" + totalAssets + " loaded - Check console for details");
+        
+        // Restore original text after 3 seconds
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+                Platform.runLater(() -> statsLabel.setText(originalText));
+            } catch (InterruptedException ex) {}
+        }).start();
+    }
+    
+    private boolean shouldUseAssets(String assetName) {
+        switch (assetMode) {
+            case "DISABLE":
+                return false;
+            case "FORCE":
+                return true; // Force even if asset is missing, will use enhanced shapes
+            case "AUTO":
+            default:
+                return assetManager.hasImage(assetName);
         }
     }
     
