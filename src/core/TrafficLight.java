@@ -1,3 +1,5 @@
+package src.core;
+
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -151,5 +153,18 @@ public class TrafficLight extends Thread {
 
     public String getLightId() {
         return road.getId();
+    }
+
+    public synchronized State getCurrentState() {
+        return getTrafficLightState();
+    }
+
+    public String getRoadId() {
+        return road.getId();
+    }
+
+    public long getTimeRemaining() {
+        // Simple placeholder - would need actual timer implementation
+        return 5000; // 5 seconds default
     }
 }

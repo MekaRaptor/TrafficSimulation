@@ -1,0 +1,38 @@
+{
+  "name": "traffic-simulation-api",
+  "version": "1.0.0",
+  "description": "GraphQL API layer for Traffic Simulation",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "echo 'No build needed'",
+    "java:compile": "javac -cp \"../src\" ../src/core/*.java -d ../compiled",
+    "java:start": "cd .. && java -cp compiled src.core.SimulationServer"
+  },
+  "keywords": [
+    "traffic",
+    "simulation",
+    "graphql",
+    "websocket"
+  ],
+  "author": "Traffic Simulation Team",
+  "license": "MIT",
+  "dependencies": {
+    "apollo-server-express": "^3.12.0",
+    "child_process": "^1.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "graphql": "^16.8.1",
+    "socket.io": "^4.7.4",
+    "traffic-simulation-api": "file:"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

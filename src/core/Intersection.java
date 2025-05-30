@@ -1,3 +1,5 @@
+package src.core;
+
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -8,6 +10,9 @@ public class Intersection {
     private final ConcurrentHashMap<String, Long> waitingVehicles;
     private static final long TIMEOUT = 5000; // 5 saniye timeout
     private static final long WAIT_TIME = 100; // 100ms bekleme süresi
+    
+    // Position fields for visualization
+    private double x = 0.0, y = 0.0;
 
     public Intersection(String id) {
         this.id = id;
@@ -82,5 +87,40 @@ public class Intersection {
 
     public boolean isAvailable() {
         return access.availablePermits() > 0;
+    }
+    
+    // Position methods for visualization
+    public void setPosition(double x, double y) {
+        this.x = x;
+        this.y = y;
+    }
+    
+    public double getX() {
+        return x;
+    }
+    
+    public double getY() {
+        return y;
+    }
+    
+    // Additional methods for GraphQL
+    public IntersectionType getType() {
+        return IntersectionType.TRAFFIC_LIGHT;
+    }
+    
+    public java.util.List<String> getConnectedRoads() {
+        return new java.util.ArrayList<>(); // Placeholder
+    }
+    
+    public int getWaitingVehicles() {
+        return waitingVehicles.size();
+    }
+    
+    public enum IntersectionType {
+        TRAFFIC_LIGHT, STOP_SIGN, ROUNDABOUT, UNCONTROLLED;
+        
+        public String getDisplayName() {
+            return this.name().replace("_", " ");
+        }
     }
 }
