@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚗 Traffic Simulation - Web Version</title>
+    
+    <!-- Leaflet Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            width: 300px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+        
+        .control-panel h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            text-align: center;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .control-group h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #218838;
+            transform: translateY(-2px);
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-info {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #ffc107;
+            color: #212529;
+        }
+        
+        /* Stats Panel */
+        .stats {
+            background: #e8f4fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .stat-value {
+            color: #667eea;
+            font-weight: bold;
+        }
+        
+        /* Map Container */
+        .map-container {
+            flex: 1;
+            position: relative;
+        }
+        
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        
+        /* Vehicle Info Popup */
+        .vehicle-popup {
+            max-width: 200px;
+        }
+        
+        .vehicle-popup h4 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .vehicle-popup p {
+            margin: 5px 0;
+            font-size: 12px;
+        }
+        
+        /* Loading Overlay */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+        }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Status Indicator */
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-running {
+            background: #28a745;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-stopped {
+            background: #dc3545;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            
+            .control-panel {
+                width: 100%;
+                height: 200px;
+            }
+            
+            .map-container {
+                height: calc(100vh - 200px);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <h1>🚗 Traffic Control</h1>
+            
+            <!-- Simulation Status -->
+            <div class="control-group">
+                <h3>📊 Simulation Status</h3>
+                <div class="stats" id="status-panel">
+                    <div class="stat-item">
+                        <span class="stat-label">Status:</span>
+                        <span class="stat-value">
+                            <span class="status-indicator status-stopped" id="status-indicator"></span>
+                            <span id="status-text">Stopped</span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Control Buttons -->
+            <div class="control-group">
+                <h3>🎮 Controls</h3>
+                <button class="btn-primary" onclick="startSimulation()">▶️ Start Simulation</button>
+                <button class="btn-danger" onclick="stopSimulation()">⏹️ Stop Simulation</button>
+                <button class="btn-info" onclick="resetSimulation()">🔄 Reset Simulation</button>
+                <button class="btn-warning" onclick="toggleMapMode()">🗺️ Toggle Map Mode</button>
+            </div>
+            
+            <!-- Live Statistics -->
+            <div class="control-group">
+                <h3>📈 Live Statistics</h3>
+                <div class="stats" id="stats-panel">
+                    <div class="stat-item">
+                        <span class="stat-label">Active Vehicles:</span>
+                        <span class="stat-value" id="active-vehicles">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Total Roads:</span>
+                        <span class="stat-value" id="total-roads">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Avg Congestion:</span>
+                        <span class="stat-value" id="avg-congestion">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">Avg Wait Time:</span>
+                        <span class="stat-value" id="avg-wait-time">0s</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vehicle Types -->
+            <div class="control-group">
+                <h3>🚙 Vehicle Types</h3>
+                <div class="stats" id="vehicle-types">
+                    <div class="stat-item">
+                        <span class="stat-label">🚗 Cars:</span>
+                        <span class="stat-value" id="cars-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🚛 Trucks:</span>
+                        <span class="stat-value" id="trucks-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🏍️ Motorcycles:</span>
+                        <span class="stat-value" id="motorcycles-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🚌 Buses:</span>
+                        <span class="stat-value" id="buses-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Map Container -->
+        <div class="map-container">
+            <div id="map"></div>
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading simulation data...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet Map JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // Global variables
+        let map;
+        let isRunning = false;
+        let vehicleMarkers = {};
+        let roadLayer;
+        let zoneLayer;
+        let updateInterval;
+        let mapMode = 'realistic'; // 'realistic' or 'satellite'
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeMap();
+            loadInitialData();
+        });
+        
+        // Initialize Leaflet Map
+        function initializeMap() {
+            // Center on Istanbul, Turkey (you can change this)
+            map = L.map('map').setView([41.0082, 28.9784], 13);
+            
+            // Add tile layer (OpenStreetMap)
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            
+            // Initialize layers
+            roadLayer = L.layerGroup().addTo(map);
+            zoneLayer = L.layerGroup().addTo(map);
+            
+            console.log('🗺️ Map initialized');
+        }
+        
+        // Load initial simulation data
+        function loadInitialData() {
+            showLoading(true);
+            
+            // Simulate API calls (in real app, these would be HTTP requests)
+            setTimeout(() => {
+                loadRoads();
+                loadZones();
+                updateStats();
+                showLoading(false);
+                console.log('📊 Initial data loaded');
+            }, 1000);
+        }
+        
+        // Show/hide loading overlay
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+        
+        // Simulation Control Functions
+        function startSimulation() {
+            if (!isRunning) {
+                isRunning = true;
+                updateStatus('running', 'Running');
+                
+                // Start periodic updates
+                updateInterval = setInterval(updateVehicles, 1000);
+                
+                console.log('▶️ Simulation started');
+                
+                // Simulate API call
+                console.log('API: Starting simulation...');
+            }
+        }
+        
+        function stopSimulation() {
+            if (isRunning) {
+                isRunning = false;
+                updateStatus('stopped', 'Stopped');
+                
+                // Stop updates
+                if (updateInterval) {
+                    clearInterval(updateInterval);
+                    updateInterval = null;
+                }
+                
+                console.log('⏹️ Simulation stopped');
+            }
+        }
+        
+        function resetSimulation() {
+            stopSimulation();
+            
+            // Clear vehicles
+            Object.values(vehicleMarkers).forEach(marker => {
+                map.removeLayer(marker);
+            });
+            vehicleMarkers = {};
+            
+            // Reset stats
+            document.getElementById('active-vehicles').textContent = '0';
+            document.getElementById('avg-congestion').textContent = '0%';
+            document.getElementById('avg-wait-time').textContent = '0s';
+            
+            // Reload data
+            loadInitialData();
+            
+            console.log('🔄 Simulation reset');
+        }
+        
+        function toggleMapMode() {
+            mapMode = mapMode === 'realistic' ? 'satellite' : 'realistic';
+            
+            // Remove current tile layer
+            map.eachLayer(function(layer) {
+                if (layer._url) {
+                    map.removeLayer(layer);
+                }
+            });
+            
+            // Add new tile layer
+            if (mapMode === 'satellite') {
+                L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                    attribution: '© Esri'
+                }).addTo(map);
+            } else {
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors'
+                }).addTo(map);
+            }
+            
+            console.log('🗺️ Map mode changed to:', mapMode);
+        }
+        
+        // Update simulation status
+        function updateStatus(status, text) {
+            const indicator = document.getElementById('status-indicator');
+            const statusText = document.getElementById('status-text');
+            
+            indicator.className = 'status-indicator status-' + status;
+            statusText.textContent = text;
+        }
+        
+        // Load and display roads
+        function loadRoads() {
+            // Simulate road data (in real app, this would come from Java API)
+            const sampleRoads = [
+                {id: 'HW_MAIN_EW', type: 'Otoyol', x1: 28.9700, y1: 41.0082, x2: 28.9900, y2: 41.0082, congestion: 0.3},
+                {id: 'MAIN_NORTH', type: 'Ana Yol', x1: 28.9784, y1: 41.0000, x2: 28.9784, y2: 41.0150, congestion: 0.5},
+                {id: 'SEC_1', type: 'Tali Yol', x1: 28.9650, y1: 41.0100, x2: 28.9850, y2: 41.0100, congestion: 0.2}
+            ];
+            
+            roadLayer.clearLayers();
+            
+            sampleRoads.forEach(road => {
+                const color = getCongestionColor(road.congestion);
+                const weight = getRoadWeight(road.type);
+                
+                const roadLine = L.polyline([
+                    [road.y1, road.x1],
+                    [road.y2, road.x2]
+                ], {
+                    color: color,
+                    weight: weight,
+                    opacity: 0.8
+                }).addTo(roadLayer);
+                
+                roadLine.bindPopup(`
+                    <strong>${road.type}</strong><br>
+                    ID: ${road.id}<br>
+                    Congestion: ${(road.congestion * 100).toFixed(1)}%
+                `);
+            });
+            
+            document.getElementById('total-roads').textContent = sampleRoads.length;
+        }
+        
+        // Load and display zones
+        function loadZones() {
+            // Simulate zone data
+            const sampleZones = [
+                {id: 'DOWNTOWN', type: 'Şehir Merkezi', x: 28.9750, y: 41.0082, width: 0.01, height: 0.01},
+                {id: 'RES_NORTH', type: 'Konut Bölgesi', x: 28.9700, y: 41.0150, width: 0.015, height: 0.008}
+            ];
+            
+            zoneLayer.clearLayers();
+            
+            sampleZones.forEach(zone => {
+                const color = getZoneColor(zone.type);
+                
+                const zoneBounds = [
+                    [zone.y, zone.x],
+                    [zone.y + zone.height, zone.x + zone.width]
+                ];
+                
+                const zoneRect = L.rectangle(zoneBounds, {
+                    color: color,
+                    weight: 2,
+                    fillOpacity: 0.2
+                }).addTo(zoneLayer);
+                
+                zoneRect.bindPopup(`
+                    <strong>${zone.type}</strong><br>
+                    ID: ${zone.id}
+                `);
+            });
+        }
+        
+        // Update vehicle positions
+        function updateVehicles() {
+            if (!isRunning) return;
+            
+            // Simulate vehicle data (in real app, this would come from Java API)
+            const sampleVehicles = generateSampleVehicles();
+            
+            // Update existing vehicles or create new ones
+            sampleVehicles.forEach(vehicle => {
+                if (vehicleMarkers[vehicle.id]) {
+                    // Update existing vehicle
+                    vehicleMarkers[vehicle.id].setLatLng([vehicle.y, vehicle.x]);
+                } else {
+                    // Create new vehicle marker
+                    const icon = getVehicleIcon(vehicle.type);
+                    const marker = L.marker([vehicle.y, vehicle.x], {icon: icon})
+                        .addTo(map);
+                    
+                    marker.bindPopup(`
+                        <div class="vehicle-popup">
+                            <h4>🚗 ${vehicle.id}</h4>
+                            <p><strong>Type:</strong> ${vehicle.type}</p>
+                            <p><strong>Speed:</strong> ${vehicle.speed.toFixed(1)} km/h</p>
+                            <p><strong>Fuel:</strong> ${vehicle.fuel.toFixed(1)}%</p>
+                            <p><strong>Purpose:</strong> ${vehicle.purpose}</p>
+                        </div>
+                    `);
+                    
+                    vehicleMarkers[vehicle.id] = marker;
+                }
+            });
+            
+            // Update vehicle type counts
+            updateVehicleTypeCounts(sampleVehicles);
+        }
+        
+        // Generate sample vehicle data
+        function generateSampleVehicles() {
+            const vehicles = [];
+            const types = ['Şahsi Araç', 'Kamyon', 'Motosiklet', 'Otobüs'];
+            const purposes = ['İş', 'Alışveriş', 'Rekreasyon', 'Yerel Seyahat'];
+            
+            for (let i = 0; i < 15; i++) {
+                vehicles.push({
+                    id: `V${i}`,
+                    type: types[Math.floor(Math.random() * types.length)],
+                    x: 28.9700 + Math.random() * 0.02,
+                    y: 41.0050 + Math.random() * 0.015,
+                    speed: 20 + Math.random() * 40,
+                    fuel: 70 + Math.random() * 30,
+                    purpose: purposes[Math.floor(Math.random() * purposes.length)]
+                });
+            }
+            
+            return vehicles;
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const stats = {
+                activeVehicles: Math.floor(Math.random() * 20),
+                avgCongestion: Math.random() * 60,
+                avgWaitTime: Math.random() * 15
+            };
+            
+            document.getElementById('active-vehicles').textContent = stats.activeVehicles;
+            document.getElementById('avg-congestion').textContent = stats.avgCongestion.toFixed(1) + '%';
+            document.getElementById('avg-wait-time').textContent = stats.avgWaitTime.toFixed(1) + 's';
+        }
+        
+        // Update vehicle type counts
+        function updateVehicleTypeCounts(vehicles) {
+            const counts = {cars: 0, trucks: 0, motorcycles: 0, buses: 0};
+            
+            vehicles.forEach(v => {
+                switch(v.type) {
+                    case 'Şahsi Araç': counts.cars++; break;
+                    case 'Kamyon': counts.trucks++; break;
+                    case 'Motosiklet': counts.motorcycles++; break;
+                    case 'Otobüs': counts.buses++; break;
+                }
+            });
+            
+            document.getElementById('cars-count').textContent = counts.cars;
+            document.getElementById('trucks-count').textContent = counts.trucks;
+            document.getElementById('motorcycles-count').textContent = counts.motorcycles;
+            document.getElementById('buses-count').textContent = counts.buses;
+        }
+        
+        // Utility functions
+        function getCongestionColor(congestion) {
+            if (congestion < 0.3) return '#28a745'; // Green
+            if (congestion < 0.6) return '#ffc107'; // Yellow
+            return '#dc3545'; // Red
+        }
+        
+        function getRoadWeight(type) {
+            switch(type) {
+                case 'Otoyol': return 8;
+                case 'Ana Yol': return 6;
+                case 'Tali Yol': return 4;
+                default: return 3;
+            }
+        }
+        
+        function getZoneColor(type) {
+            switch(type) {
+                case 'Şehir Merkezi': return '#9C27B0';
+                case 'Konut Bölgesi': return '#4CAF50';
+                case 'Ticaret Bölgesi': return '#2196F3';
+                case 'Sanayi Bölgesi': return '#FF9800';
+                default: return '#607D8B';
+            }
+        }
+        
+        function getVehicleIcon(type) {
+            let emoji = '🚗';
+            switch(type) {
+                case 'Kamyon': emoji = '🚛'; break;
+                case 'Motosiklet': emoji = '🏍️'; break;
+                case 'Otobüs': emoji = '🚌'; break;
+            }
+            
+            return L.divIcon({
+                html: `<div style="font-size: 20px;">${emoji}</div>`,
+                className: 'vehicle-icon',
+                iconSize: [25, 25],
+                iconAnchor: [12, 12]
+            });
+        }
+    </script>
+</body>
+</html> 

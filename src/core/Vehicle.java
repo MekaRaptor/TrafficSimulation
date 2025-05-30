@@ -1,5 +1,9 @@
+package src.core;
+
 import java.util.List;
 import java.util.Random;
+import java.util.ArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Vehicle extends Thread {
     private final String id;
@@ -17,25 +21,78 @@ public class Vehicle extends Thread {
     private double speed;
     private VehicleType type;
     
+    // Yeni gerçekçi sistem için eklenenler
+    private CityMap.Zone startZone;
+    private CityMap.Zone endZone;
+    private CityMap.Zone currentZone;
+    private List<Road> alternativeRoute = new ArrayList<>();
+    private boolean useAlternativeRoute = false;
+    private long lastRouteUpdate = System.currentTimeMillis();
+    private int routeRecalculationCount = 0;
+    private double fuelLevel = 100.0; // Yakıt seviyesi
+    private String purpose = ""; // Seyahat amacı
+    
     public enum VehicleType {
-        CAR(1.0),
-        TRUCK(0.7),
-        MOTORCYCLE(1.3),
-        BUS(0.8);
+        CAR(1.0, "Şahsi Araç"),
+        TRUCK(0.7, "Kamyon"),
+        MOTORCYCLE(1.3, "Motosiklet"),
+        BUS(0.8, "Otobüs"),
+        TAXI(1.1, "Taksi"),
+        DELIVERY(0.9, "Kargo Aracı");
         
         private final double speedFactor;
+        private final String displayName;
         
-        VehicleType(double speedFactor) {
+        VehicleType(double speedFactor, String displayName) {
             this.speedFactor = speedFactor;
+            this.displayName = displayName;
         }
         
         public double getSpeedFactor() {
             return speedFactor;
         }
         
+        public String getDisplayName() {
+            return displayName;
+        }
+        
         public static VehicleType getRandomType() {
             VehicleType[] types = VehicleType.values();
             return types[random.nextInt(types.length)];
+        }
+        
+        // Zone'a göre araç türü dağılımı
+        public static VehicleType getRandomTypeForZone(CityMap.ZoneType zoneType) {
+            switch (zoneType) {
+                case RESIDENTIAL:
+                    // Konut bölgelerinde daha çok şahsi araç
+                    if (random.nextDouble() < 0.7) return CAR;
+                    if (random.nextDouble() < 0.9) return MOTORCYCLE;
+                    return BUS;
+                    
+                case COMMERCIAL:
+                    // Ticaret bölgelerinde karışık
+                    if (random.nextDouble() < 0.4) return CAR;
+                    if (random.nextDouble() < 0.6) return TAXI;
+                    if (random.nextDouble() < 0.8) return DELIVERY;
+                    return TRUCK;
+                    
+                case INDUSTRIAL:
+                    // Sanayi bölgelerinde ağır araçlar
+                    if (random.nextDouble() < 0.5) return TRUCK;
+                    if (random.nextDouble() < 0.7) return DELIVERY;
+                    return CAR;
+                    
+                case DOWNTOWN:
+                    // Şehir merkezinde taksi ve otobüs
+                    if (random.nextDouble() < 0.3) return TAXI;
+                    if (random.nextDouble() < 0.5) return BUS;
+                    if (random.nextDouble() < 0.8) return CAR;
+                    return MOTORCYCLE;
+                    
+                default:
+                    return getRandomType();
+            }
         }
     }
 
@@ -49,6 +106,12 @@ public class Vehicle extends Thread {
         this.type = VehicleType.getRandomType();
         this.speed = type.getSpeedFactor() * (0.8 + random.nextDouble() * 0.4); // Random speed variation
         
+        // Zone tabanlı araç türü ve amaç belirleme
+        if (startZone != null) {
+            this.type = VehicleType.getRandomTypeForZone(startZone.getType());
+            this.purpose = generatePurpose();
+        }
+        
         if (!route.isEmpty()) {
             this.currentRoad = route.get(0);
         }
@@ -56,13 +119,28 @@ public class Vehicle extends Thread {
 
     @Override
     public void run() {
+        System.out.println("🚗 Vehicle " + id + " (" + type.getDisplayName() + ") starting journey: " + 
+                         getZoneName(startZone) + " → " + getZoneName(endZone) + " (" + purpose + ")");
+        
         for (int i = 0; i < route.size() && active; i++) {
             Road currentRoad = route.get(i);
-            TrafficLight currentLight = lights.get(i);
-            Intersection currentIntersection = intersections.get(i);
+            TrafficLight currentLight = null;
+            Intersection currentIntersection = null;
+            
+            // Trafik ışığı ve kavşak bulma
+            if (i < lights.size()) currentLight = lights.get(i);
+            if (i < intersections.size()) currentIntersection = intersections.get(i);
             
             this.currentRoad = currentRoad;
             this.progress = 0.0;
+            
+            // Zone güncelleme
+            updateCurrentZone();
+            
+            // Dinamik rota kontrolü
+            if (shouldRecalculateRoute()) {
+                recalculateRoute(i);
+            }
             
             int retryCount = 0;
             boolean success = false;
@@ -87,90 +165,268 @@ public class Vehicle extends Thread {
                     break;
                 }
             }
+            
+            // Yakıt tüketimi
+            consumeFuel();
         }
-        System.out.println("Vehicle " + id + " completed its route");
+        
+        System.out.println("✅ Vehicle " + id + " completed journey to " + getZoneName(endZone) + 
+                         " (Total wait: " + (totalWaitTime / 1000) + "s, Fuel: " + String.format("%.1f%%", fuelLevel) + ")");
     }
 
     private boolean tryToMoveThrough(Road road, TrafficLight light, Intersection intersection) throws InterruptedException {
-        // Wait for green light
-        waitStartTime = System.currentTimeMillis();
-        while (active && light.getTrafficLightState() != TrafficLight.State.GREEN) {
-            Thread.sleep(100);
-        }
-        totalWaitTime += System.currentTimeMillis() - waitStartTime;
-        
-        // Try to enter the road
-        if (!road.addVehicle(this)) {
-            return false;
-        }
-        
-        // Try to enter the intersection
-        waitStartTime = System.currentTimeMillis();
-        if (!intersection.enter(id)) {
-            road.removeVehicle(this);
+        // GÜÇLÜ Trafik ışığı kontrolü
+        if (light != null) {
+            System.out.println("🚦 Vehicle " + id + " checking traffic light for road " + road.getId());
+            waitStartTime = System.currentTimeMillis();
+            
+            int lightWaitCount = 0;
+            final int MAX_LIGHT_WAIT = 50; // Maksimum 5 saniye bekle (50 * 100ms)
+            
+            while (active && light.getTrafficLightState() != TrafficLight.State.GREEN && lightWaitCount < MAX_LIGHT_WAIT) {
+                TrafficLight.State currentState = light.getTrafficLightState();
+                System.out.println("🔴 Vehicle " + id + " waiting for GREEN light, current: " + currentState);
+                Thread.sleep(100);
+                lightWaitCount++;
+            }
+            
+            if (lightWaitCount >= MAX_LIGHT_WAIT) {
+                System.out.println("⚠️ Vehicle " + id + " timed out waiting for traffic light");
+                totalWaitTime += System.currentTimeMillis() - waitStartTime;
+                return false;
+            }
+            
             totalWaitTime += System.currentTimeMillis() - waitStartTime;
+            System.out.println("🟢 Vehicle " + id + " got GREEN light, proceeding");
+        }
+        
+        // Yola giriş denemesi
+        if (!road.addVehicle(this)) {
+            System.out.println("🚫 Vehicle " + id + " cannot enter road " + road.getId() + " (full)");
             return false;
         }
-        totalWaitTime += System.currentTimeMillis() - waitStartTime;
         
-        // Move through the road
-        move(road);
+        System.out.println("✅ Vehicle " + id + " entered road " + road.getId());
         
-        // Exit the intersection
-        intersection.exit(id);
+        // Kavşak kontrolü (varsa)
+        if (intersection != null) {
+            waitStartTime = System.currentTimeMillis();
+            if (!intersection.enter(id)) {
+                road.removeVehicle(this);
+                totalWaitTime += System.currentTimeMillis() - waitStartTime;
+                System.out.println("🚫 Vehicle " + id + " cannot enter intersection " + intersection.getId());
+                return false;
+            }
+            totalWaitTime += System.currentTimeMillis() - waitStartTime;
+            System.out.println("✅ Vehicle " + id + " entered intersection " + intersection.getId());
+        }
+        
+        // Yolda hareket (burada progress takip edilir)
+        moveOnRoad(road);
+        
+        // Kavşaktan çıkış
+        if (intersection != null) {
+            intersection.exit(id);
+            System.out.println("✅ Vehicle " + id + " exited intersection " + intersection.getId());
+        }
+        
         road.removeVehicle(this);
+        System.out.println("✅ Vehicle " + id + " exited road " + road.getId());
         
         return true;
     }
 
     private void handleFailure(int currentRouteIndex) {
-        // Simple fallback strategy: return to previous road
-        if (currentRouteIndex > 0) {
-            System.out.println("Vehicle " + id + " is returning to previous road");
-            position--;
-            if (currentRouteIndex - 1 < route.size()) {
-                currentRoad = route.get(currentRouteIndex - 1);
+        // Gelişmiş hata yönetimi
+        System.out.println("🚨 Vehicle " + id + " handling failure at route index " + currentRouteIndex);
+        
+        if (alternativeRoute.isEmpty()) {
+            // Alternatif rota bulunamadı, geri dön
+            if (currentRouteIndex > 0) {
+                System.out.println("Vehicle " + id + " is returning to previous road");
+                position--;
+                if (currentRouteIndex - 1 < route.size()) {
+                    currentRoad = route.get(currentRouteIndex - 1);
+                }
+            } else {
+                System.out.println("Vehicle " + id + " cancelling route");
+                active = false;
             }
         } else {
-            // Cancel route if at starting point
-            System.out.println("Vehicle " + id + " cancelling route");
-            active = false;
+            // Alternatif rotaya geç
+            useAlternativeRoute = true;
+            System.out.println("Vehicle " + id + " switching to alternative route");
         }
     }
 
-    private void move(Road road) {
+    private void moveOnRoad(Road road) {
         position++;
         
-        // Calculate movement steps based on vehicle type and speed
-        int steps = 20;
-        double stepDelay = 50 / speed;
+        // Yol türüne ve trafik durumuna göre hız ayarlaması
+        double baseSpeed = speed;
         
-        // Simulate traffic conditions affecting speed
-        double congestion = (double) road.getVehicleCount() / road.getCapacity();
-        double congestionFactor = 1.0 - (congestion * 0.7); // Slow down in congestion
-        stepDelay /= congestionFactor;
+        // Yol türü faktörü
+        if (road.getRoadType() != null) {
+            switch (road.getRoadType()) {
+                case HIGHWAY:
+                    baseSpeed *= 1.5; // Otoyolda hızlı
+                    break;
+                case MAIN_ROAD:
+                    baseSpeed *= 1.2;
+                    break;
+                case RESIDENTIAL_STREET:
+                    baseSpeed *= 0.7; // Konut sokağında yavaş
+                    break;
+            }
+        }
         
-        // Smooth animation with variable speed
-        for (int i = 0; i < steps; i++) {
+        // Trafik sıkışıklığı faktörü
+        double congestion = road.getCongestionLevel();
+        double congestionFactor = 1.0 - (congestion * 0.8);
+        baseSpeed *= congestionFactor;
+        
+        // Zone faktörü
+        if (currentZone != null) {
+            baseSpeed *= currentZone.getType().getTrafficDensityFactor();
+        }
+        
+        // Araç türü faktörü
+        if (type == VehicleType.MOTORCYCLE && congestion > 0.5) {
+            baseSpeed *= 1.3; // Motosikletler trafikte daha hızlı
+        }
+        
+        // DÜZELTME: Hareket simülasyonu - yolda kalma garantisi
+        int steps = 50; // Daha hassas hareket için step sayısını artırdık
+        double stepDelay = 100 / Math.max(0.1, baseSpeed);
+        
+        for (int i = 0; i < steps && active; i++) {
             try {
-                progress = i / (double)steps;
+                // Progress yol sınırları içinde kalmalı (0.0 - 1.0)
+                progress = Math.min(1.0, Math.max(0.0, i / (double)steps));
                 
-                // Add slight randomness to movement for realism
-                if (random.nextDouble() < 0.1) {
-                    Thread.sleep((long)(stepDelay * (0.8 + random.nextDouble() * 0.4)));
-                } else {
-                    Thread.sleep((long)stepDelay);
+                // Mevcut road değişmemeli
+                if (currentRoad == null || !currentRoad.equals(road)) {
+                    System.out.println("⚠️ Vehicle " + id + " road reference lost, stopping movement");
+                    break;
+                }
+                
+                Thread.sleep((long)stepDelay);
+                
+                // Rastgele duraklamalar (gerçekçi hareket için) - azaltıldı
+                if (random.nextDouble() < 0.02) { // %2'ye düşürüldü
+                    Thread.sleep(random.nextInt(100) + 50);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-        progress = 1.0;
-        System.out.println("Vehicle " + id + " moved to position " + position + " on road " + road.getId()
-                + " [" + road.getDirection() + "]");
+        
+        progress = 1.0; // Yol tamamlandı
+        
+        System.out.println("✅ Vehicle " + id + " completed road " + road.getId() + 
+                         " (" + road.getRoadType().getDisplayName() + ")" + 
+                         " Speed: " + String.format("%.1f", baseSpeed) + 
+                         " Congestion: " + String.format("%.1f%%", congestion * 100));
+    }
+    
+    private void updateCurrentZone() {
+        // Mevcut yola göre zone güncelle (basit versiyon)
+        if (currentRoad != null && startZone != null && endZone != null) {
+            double routeProgress = (double) position / route.size();
+            if (routeProgress < 0.3) {
+                currentZone = startZone;
+            } else if (routeProgress > 0.7) {
+                currentZone = endZone;
+            } else {
+                // Ara bölgede, rastgele zone seç veya aynı kalsın
+            }
+        }
+    }
+    
+    private boolean shouldRecalculateRoute() {
+        // 30 saniyede bir rota kontrolü
+        return (System.currentTimeMillis() - lastRouteUpdate > 30000) && 
+               (routeRecalculationCount < 3); // Maksimum 3 kez yeniden hesapla
+    }
+    
+    private void recalculateRoute(int currentIndex) {
+        // Basit rota yeniden hesaplama
+        if (currentRoad != null && currentRoad.getCongestionLevel() > 0.7) {
+            System.out.println("🔄 Vehicle " + id + " is recalculating route due to heavy traffic");
+            routeRecalculationCount++;
+            lastRouteUpdate = System.currentTimeMillis();
+            
+            // TODO: Gerçek A* pathfinding algoritması eklenecek
+            // Şimdilik sadece mesaj göster
+        }
+    }
+    
+    private void consumeFuel() {
+        // Yakıt tüketimi simülasyonu
+        double consumption = 0.5; // Temel tüketim
+        
+        if (currentRoad != null) {
+            // Yol türüne göre tüketim
+            switch (currentRoad.getRoadType()) {
+                case HIGHWAY:
+                    consumption *= 0.8; // Otoyolda verimli
+                    break;
+                case RESIDENTIAL_STREET:
+                    consumption *= 1.2; // Dur-kalk fazla yakıt
+                    break;
+            }
+            
+            // Sıkışıklıkta daha fazla yakıt
+            consumption *= (1.0 + currentRoad.getCongestionLevel() * 0.5);
+        }
+        
+        // Araç türüne göre tüketim
+        switch (type) {
+            case TRUCK:
+                consumption *= 2.0;
+                break;
+            case BUS:
+                consumption *= 1.8;
+                break;
+            case MOTORCYCLE:
+                consumption *= 0.5;
+                break;
+        }
+        
+        fuelLevel = Math.max(0, fuelLevel - consumption);
+        
+        if (fuelLevel < 10) {
+            System.out.println("⛽ Vehicle " + id + " is low on fuel (" + String.format("%.1f%%", fuelLevel) + ")");
+        }
+    }
+    
+    private String generatePurpose() {
+        if (startZone == null || endZone == null) return "Seyahat";
+        
+        CityMap.ZoneType startType = startZone.getType();
+        CityMap.ZoneType endType = endZone.getType();
+        
+        if (startType == CityMap.ZoneType.RESIDENTIAL && endType == CityMap.ZoneType.COMMERCIAL) {
+            return "Alışveriş";
+        } else if (startType == CityMap.ZoneType.RESIDENTIAL && endType == CityMap.ZoneType.DOWNTOWN) {
+            return "İş";
+        } else if (endType == CityMap.ZoneType.INDUSTRIAL) {
+            return "Kargo/İş";
+        } else if (endType == CityMap.ZoneType.PARK) {
+            return "Rekreasyon";
+        } else if (startType == endType) {
+            return "Yerel Seyahat";
+        }
+        
+        return "Genel Seyahat";
+    }
+    
+    private String getZoneName(CityMap.Zone zone) {
+        return zone != null ? zone.getType().getDisplayName() + " (" + zone.getId() + ")" : "Bilinmeyen";
     }
 
+    // Getter metodları
     public String getVehicleId() {
         return id;
     }
@@ -201,5 +457,53 @@ public class Vehicle extends Thread {
 
     public void stopVehicle() {
         active = false;
+        // Thread'i interrupt et ki döngüden çıksın
+        this.interrupt();
+    }
+    
+    // Yeni getter/setter metodları
+    public void setStartZone(CityMap.Zone startZone) {
+        this.startZone = startZone;
+        if (startZone != null) {
+            this.type = VehicleType.getRandomTypeForZone(startZone.getType());
+            this.purpose = generatePurpose();
+        }
+    }
+    
+    public void setEndZone(CityMap.Zone endZone) {
+        this.endZone = endZone;
+        this.purpose = generatePurpose();
+    }
+    
+    public CityMap.Zone getStartZone() {
+        return startZone;
+    }
+    
+    public CityMap.Zone getEndZone() {
+        return endZone;
+    }
+    
+    public CityMap.Zone getCurrentZone() {
+        return currentZone;
+    }
+    
+    public String getPurpose() {
+        return purpose;
+    }
+    
+    public double getFuelLevel() {
+        return fuelLevel;
+    }
+    
+    public int getRouteRecalculationCount() {
+        return routeRecalculationCount;
+    }
+    
+    @Override
+    public String toString() {
+        return String.format("Vehicle[%s, %s, %s→%s, Fuel: %.1f%%, Wait: %ds]", 
+                           id, type.getDisplayName(), 
+                           getZoneName(startZone), getZoneName(endZone),
+                           fuelLevel, totalWaitTime / 1000);
     }
 }

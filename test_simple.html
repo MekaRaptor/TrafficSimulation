@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>🧪 Simple Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f0f0f0; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+        button { padding: 10px 20px; margin: 10px; background: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #2980b9; }
+        #output { background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; }
+        #canvas { border: 2px solid #3498db; background: #34495e; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Backend Test Page</h1>
+        
+        <div>
+            <button onclick="testConnection()">🔌 Test Connection</button>
+            <button onclick="testRoads()">🛣️ Test Roads</button>
+            <button onclick="testVehicles()">🚗 Test Vehicles</button>
+            <button onclick="drawTestCity()">🏙️ Draw Test City</button>
+        </div>
+        
+        <h3>📊 Server Response:</h3>
+        <div id="output">Click a button to test...</div>
+        
+        <h3>🎨 Visual Test:</h3>
+        <canvas id="canvas" width="400" height="300"></canvas>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        function log(message) {
+            output.textContent += new Date().toLocaleTimeString() + ' - ' + message + '\n';
+        }
+
+        async function testConnection() {
+            output.textContent = '';
+            log('🔌 Testing connection...');
+            
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+                log('✅ Connection successful!');
+                log('Response: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('❌ Connection failed: ' + error.message);
+            }
+        }
+
+        async function testRoads() {
+            output.textContent = '';
+            log('🛣️ Testing roads API...');
+            
+            try {
+                const response = await fetch('/api/roads');
+                const data = await response.json();
+                log('✅ Roads loaded!');
+                log('Roads count: ' + (data.roads ? data.roads.length : 0));
+                log('Response: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('❌ Roads failed: ' + error.message);
+            }
+        }
+
+        async function testVehicles() {
+            output.textContent = '';
+            log('🚗 Testing vehicles API...');
+            
+            try {
+                const response = await fetch('/api/vehicles');
+                const data = await response.json();
+                log('✅ Vehicles loaded!');
+                log('Vehicle count: ' + (data.vehicles ? data.vehicles.length : 0));
+                log('Response: ' + JSON.stringify(data, null, 2));
+            } catch (error) {
+                log('❌ Vehicles failed: ' + error.message);
+            }
+        }
+
+        function drawTestCity() {
+            log('🎨 Drawing test city...');
+            
+            // Clear canvas
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw test roads
+            ctx.strokeStyle = '#ecf0f1';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(50, 150);
+            ctx.lineTo(350, 150);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(200, 50);
+            ctx.lineTo(200, 250);
+            ctx.stroke();
+            
+            // Draw test vehicle
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillRect(195, 145, 10, 10);
+            
+            // Draw text
+            ctx.fillStyle = '#ecf0f1';
+            ctx.font = '12px Arial';
+            ctx.fillText('Test City', 170, 30);
+            ctx.fillText('🚗', 200, 155);
+            
+            log('✅ Test city drawn!');
+        }
+
+        // Auto test on load
+        window.onload = function() {
+            log('🚀 Page loaded, testing canvas...');
+            drawTestCity();
+        };
+    </script>
+</body>
+</html> 

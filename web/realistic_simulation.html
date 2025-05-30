@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏙️ Custom City Traffic Simulation</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            width: 320px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 15px rgba(0,0,0,0.2);
+            overflow-y: auto;
+        }
+        
+        .control-panel h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 22px;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        
+        .control-group {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #3498db;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .control-group h3 {
+            color: #3498db;
+            margin-bottom: 12px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .btn-start {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            color: white;
+        }
+        
+        .btn-start:hover {
+            background: linear-gradient(45deg, #229954, #27ae60);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        
+        .btn-stop {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+        }
+        
+        .btn-reset {
+            background: linear-gradient(45deg, #f39c12, #e67e22);
+            color: white;
+        }
+        
+        .btn-connect {
+            background: linear-gradient(45deg, #9b59b6, #8e44ad);
+            color: white;
+        }
+        
+        /* City Canvas */
+        .city-container {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%);
+        }
+        
+        #cityCanvas {
+            width: 100%;
+            height: 100%;
+            border: 3px solid #3498db;
+            cursor: crosshair;
+        }
+        
+        /* Stats Panel */
+        .stats {
+            background: linear-gradient(135deg, #ecf0f1, #d5dbdb);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #bdc3c7;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #bdc3c7;
+        }
+        
+        .stat-label {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .stat-value {
+            color: #3498db;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        
+        /* Status Indicator */
+        .status-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status-connected {
+            background: #27ae60;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-disconnected {
+            background: #e74c3c;
+        }
+        
+        .status-running {
+            background: #f39c12;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        
+        /* Loading Overlay */
+        .loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(44, 62, 80, 0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            font-size: 18px;
+            z-index: 1000;
+        }
+        
+        .spinner {
+            border: 4px solid #34495e;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Console Log */
+        .console {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #34495e;
+        }
+        
+        .console-line {
+            margin: 2px 0;
+        }
+        
+        .console-success { color: #2ecc71; }
+        .console-error { color: #e74c3c; }
+        .console-info { color: #3498db; }
+        .console-warning { color: #f39c12; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <h1>🏙️ Custom City Control</h1>
+            
+            <!-- Connection Status -->
+            <div class="control-group">
+                <h3>🔗 Backend Connection</h3>
+                <div class="stats">
+                    <div class="stat-item">
+                        <span class="stat-label">Status:</span>
+                        <span class="stat-value">
+                            <span class="status-indicator status-disconnected" id="connection-indicator"></span>
+                            <span id="connection-text">Disconnected</span>
+                        </span>
+                    </div>
+                </div>
+                <button class="btn-connect" onclick="connectToBackend()">🔌 Connect to Java Backend</button>
+            </div>
+            
+            <!-- Simulation Controls -->
+            <div class="control-group">
+                <h3>🎮 Simulation Controls</h3>
+                <button class="btn-start" onclick="startSimulation()">▶️ Start Traffic</button>
+                <button class="btn-stop" onclick="stopSimulation()">⏹️ Stop Traffic</button>
+                <button class="btn-reset" onclick="resetSimulation()">🔄 Reset City</button>
+            </div>
+            
+            <!-- Live Statistics -->
+            <div class="control-group">
+                <h3>📊 Live Statistics</h3>
+                <div class="stats" id="live-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">🚗 Active Vehicles:</span>
+                        <span class="stat-value" id="active-vehicles">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🛣️ Total Roads:</span>
+                        <span class="stat-value" id="total-roads">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">⚠️ Congestion:</span>
+                        <span class="stat-value" id="avg-congestion">0%</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">⏱️ Avg Wait:</span>
+                        <span class="stat-value" id="avg-wait-time">0s</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vehicle Distribution -->
+            <div class="control-group">
+                <h3>🚙 Vehicle Types</h3>
+                <div class="stats" id="vehicle-stats">
+                    <div class="stat-item">
+                        <span class="stat-label">🚗 Cars:</span>
+                        <span class="stat-value" id="cars-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🚛 Trucks:</span>
+                        <span class="stat-value" id="trucks-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🏍️ Motorcycles:</span>
+                        <span class="stat-value" id="motorcycles-count">0</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-label">🚌 Buses:</span>
+                        <span class="stat-value" id="buses-count">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Console Log -->
+            <div class="control-group">
+                <h3>📺 System Console</h3>
+                <div class="console" id="console">
+                    <div class="console-line console-info">🚀 System initialized</div>
+                    <div class="console-line console-warning">⚠️ Backend not connected</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- City Canvas -->
+        <div class="city-container">
+            <canvas id="cityCanvas"></canvas>
+            <div class="loading" id="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p>Loading city data from Java backend...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Global variables
+        let canvas, ctx;
+        let isConnected = false;
+        let isSimulationRunning = false;
+        let cityData = null;
+        let vehicles = [];
+        let roads = [];
+        let zones = [];
+        let updateInterval = null;
+        
+        // City rendering settings
+        const CITY_WIDTH = 800;
+        const CITY_HEIGHT = 700;
+        const SCALE_FACTOR = 1;
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCanvas();
+            logToConsole('🎨 Canvas initialized', 'success');
+            
+            // Try to connect automatically
+            setTimeout(() => {
+                connectToBackend();
+            }, 1000);
+        });
+        
+        // Initialize canvas
+        function initializeCanvas() {
+            canvas = document.getElementById('cityCanvas');
+            ctx = canvas.getContext('2d');
+            
+            // Set canvas size
+            canvas.width = CITY_WIDTH;
+            canvas.height = CITY_HEIGHT;
+            
+            // Initial draw
+            drawCity();
+        }
+        
+        // Connect to Java backend
+        async function connectToBackend() {
+            showLoading(true);
+            logToConsole('🔌 Attempting to connect to Java backend...', 'info');
+            
+            try {
+                // Simulate connection to Java backend
+                // In real implementation, this would be an HTTP request
+                await simulateBackendConnection();
+                
+                isConnected = true;
+                updateConnectionStatus('connected', 'Connected');
+                logToConsole('✅ Connected to Java backend successfully!', 'success');
+                
+                // Load initial city data
+                await loadCityData();
+                
+            } catch (error) {
+                isConnected = false;
+                updateConnectionStatus('disconnected', 'Failed');
+                logToConsole('❌ Failed to connect to backend: ' + error.message, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }
+        
+        // Simulate backend connection
+        function simulateBackendConnection() {
+            return new Promise((resolve, reject) => {
+                setTimeout(() => {
+                    // Simulate 90% success rate
+                    if (Math.random() > 0.1) {
+                        resolve();
+                    } else {
+                        reject(new Error('Connection timeout'));
+                    }
+                }, 2000);
+            });
+        }
+        
+        // Load city data from backend
+        async function loadCityData() {
+            logToConsole('📡 Loading city data...', 'info');
+            
+            // Simulate real Java backend API responses
+            const mockApiResponse = {
+                roads: [
+                    {id: 'HW_MAIN_EW', type: 'Otoyol', x1: 50, y1: 350, x2: 750, y2: 350, capacity: 6, congestion: 0.2, speedLimit: 120},
+                    {id: 'HW_MAIN_NS', type: 'Otoyol', x1: 400, y1: 50, x2: 400, y2: 650, capacity: 6, congestion: 0.3, speedLimit: 120},
+                    {id: 'MAIN_NORTH', type: 'Ana Yol', x1: 200, y1: 50, x2: 200, y2: 300, capacity: 4, congestion: 0.4, speedLimit: 60},
+                    {id: 'MAIN_SOUTH', type: 'Ana Yol', x1: 200, y1: 400, x2: 200, y2: 650, capacity: 4, congestion: 0.5, speedLimit: 60},
+                    {id: 'MAIN_EAST', type: 'Ana Yol', x1: 450, y1: 200, x2: 750, y2: 200, capacity: 4, congestion: 0.3, speedLimit: 60},
+                    {id: 'MAIN_WEST', type: 'Ana Yol', x1: 50, y1: 200, x2: 350, y2: 200, capacity: 4, congestion: 0.2, speedLimit: 60},
+                    {id: 'SEC_1', type: 'Tali Yol', x1: 100, y1: 100, x2: 300, y2: 100, capacity: 2, congestion: 0.1, speedLimit: 40},
+                    {id: 'SEC_2', type: 'Tali Yol', x1: 500, y1: 100, x2: 700, y2: 100, capacity: 2, congestion: 0.2, speedLimit: 40}
+                ],
+                zones: [
+                    {id: 'DOWNTOWN', type: 'Şehir Merkezi', x: 350, y: 300, width: 100, height: 100},
+                    {id: 'RES_NORTH', type: 'Konut Bölgesi', x: 150, y: 80, width: 120, height: 80},
+                    {id: 'RES_SOUTH', type: 'Konut Bölgesi', x: 150, y: 520, width: 120, height: 80},
+                    {id: 'COMMERCIAL', type: 'Ticaret Bölgesi', x: 500, y: 80, width: 150, height: 80},
+                    {id: 'INDUSTRIAL', type: 'Sanayi Bölgesi', x: 500, y: 520, width: 150, height: 80}
+                ],
+                vehicles: []
+            };
+            
+            roads = mockApiResponse.roads;
+            zones = mockApiResponse.zones;
+            vehicles = mockApiResponse.vehicles;
+            
+            // Update UI
+            document.getElementById('total-roads').textContent = roads.length;
+            updateStats();
+            
+            // Redraw city
+            drawCity();
+            
+            logToConsole(`🏙️ City loaded: ${roads.length} roads, ${zones.length} zones`, 'success');
+        }
+        
+        // Start simulation
+        function startSimulation() {
+            if (!isConnected) {
+                logToConsole('❌ Cannot start: Backend not connected', 'error');
+                return;
+            }
+            
+            if (isSimulationRunning) {
+                logToConsole('⚠️ Simulation already running', 'warning');
+                return;
+            }
+            
+            isSimulationRunning = true;
+            updateConnectionStatus('running', 'Running');
+            logToConsole('▶️ Traffic simulation started', 'success');
+            
+            // Generate initial vehicles
+            generateVehicles();
+            
+            // Start animation loop
+            updateInterval = setInterval(() => {
+                updateVehicles();
+                drawCity();
+                updateStats();
+            }, 100);
+        }
+        
+        // Stop simulation
+        function stopSimulation() {
+            if (!isSimulationRunning) return;
+            
+            isSimulationRunning = false;
+            updateConnectionStatus('connected', 'Connected');
+            
+            if (updateInterval) {
+                clearInterval(updateInterval);
+                updateInterval = null;
+            }
+            
+            logToConsole('⏹️ Traffic simulation stopped', 'info');
+        }
+        
+        // Reset simulation
+        function resetSimulation() {
+            stopSimulation();
+            vehicles = [];
+            drawCity();
+            updateStats();
+            logToConsole('🔄 City reset complete', 'info');
+        }
+        
+        // Generate vehicles
+        function generateVehicles() {
+            vehicles = [];
+            const vehicleTypes = ['Şahsi Araç', 'Kamyon', 'Motosiklet', 'Otobüs'];
+            const purposes = ['İş', 'Alışveriş', 'Rekreasyon', 'Seyahat'];
+            
+            for (let i = 0; i < 15; i++) {
+                const road = roads[Math.floor(Math.random() * roads.length)];
+                vehicles.push({
+                    id: `V${i}`,
+                    type: vehicleTypes[Math.floor(Math.random() * vehicleTypes.length)],
+                    purpose: purposes[Math.floor(Math.random() * purposes.length)],
+                    x: road.x1,
+                    y: road.y1,
+                    targetX: road.x2,
+                    targetY: road.y2,
+                    speed: 20 + Math.random() * 40,
+                    fuel: 70 + Math.random() * 30,
+                    progress: Math.random(),
+                    roadId: road.id
+                });
+            }
+            
+            logToConsole(`🚗 Generated ${vehicles.length} vehicles`, 'success');
+        }
+        
+        // Update vehicle positions
+        function updateVehicles() {
+            vehicles.forEach(vehicle => {
+                // Move vehicle along its road
+                vehicle.progress += 0.005 + Math.random() * 0.005;
+                
+                if (vehicle.progress >= 1) {
+                    // Vehicle reached end, assign new road
+                    const newRoad = roads[Math.floor(Math.random() * roads.length)];
+                    vehicle.x = newRoad.x1;
+                    vehicle.y = newRoad.y1;
+                    vehicle.targetX = newRoad.x2;
+                    vehicle.targetY = newRoad.y2;
+                    vehicle.progress = 0;
+                    vehicle.roadId = newRoad.id;
+                } else {
+                    // Update position on current road
+                    const road = roads.find(r => r.id === vehicle.roadId);
+                    if (road) {
+                        vehicle.x = road.x1 + (road.x2 - road.x1) * vehicle.progress;
+                        vehicle.y = road.y1 + (road.y2 - road.y1) * vehicle.progress;
+                    }
+                }
+            });
+        }
+        
+        // Draw the city
+        function drawCity() {
+            // Clear canvas
+            ctx.fillStyle = '#2c3e50';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid background
+            drawGrid();
+            
+            // Draw zones
+            drawZones();
+            
+            // Draw roads
+            drawRoads();
+            
+            // Draw vehicles
+            drawVehicles();
+            
+            // Draw intersections
+            drawIntersections();
+        }
+        
+        // Draw grid
+        function drawGrid() {
+            ctx.strokeStyle = '#34495e';
+            ctx.lineWidth = 1;
+            
+            for (let x = 0; x < canvas.width; x += 50) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            
+            for (let y = 0; y < canvas.height; y += 50) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
+        
+        // Draw zones
+        function drawZones() {
+            zones.forEach(zone => {
+                const color = getZoneColor(zone.type);
+                ctx.fillStyle = color + '40'; // Add transparency
+                ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+                
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+                
+                // Zone label
+                ctx.fillStyle = '#ecf0f1';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(zone.type, zone.x + zone.width/2, zone.y + zone.height/2);
+            });
+        }
+        
+        // Draw roads
+        function drawRoads() {
+            roads.forEach(road => {
+                const color = getRoadColor(road.type);
+                const width = getRoadWidth(road.type);
+                
+                // Road base
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(road.x1, road.y1);
+                ctx.lineTo(road.x2, road.y2);
+                ctx.stroke();
+                
+                // Congestion indicator
+                if (road.congestion > 0.3) {
+                    ctx.strokeStyle = getCongestionColor(road.congestion);
+                    ctx.lineWidth = width - 2;
+                    ctx.beginPath();
+                    ctx.moveTo(road.x1, road.y1);
+                    ctx.lineTo(road.x2, road.y2);
+                    ctx.stroke();
+                }
+                
+                // Road markings
+                ctx.strokeStyle = '#f1c40f';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([5, 5]);
+                ctx.beginPath();
+                ctx.moveTo(road.x1, road.y1);
+                ctx.lineTo(road.x2, road.y2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            });
+        }
+        
+        // Draw vehicles
+        function drawVehicles() {
+            vehicles.forEach(vehicle => {
+                const color = getVehicleColor(vehicle.type);
+                const size = getVehicleSize(vehicle.type);
+                
+                // Vehicle body
+                ctx.fillStyle = color;
+                ctx.fillRect(vehicle.x - size/2, vehicle.y - size/2, size, size);
+                
+                // Vehicle outline
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(vehicle.x - size/2, vehicle.y - size/2, size, size);
+                
+                // Vehicle emoji
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(getVehicleEmoji(vehicle.type), vehicle.x, vehicle.y + 5);
+            });
+        }
+        
+        // Draw intersections
+        function drawIntersections() {
+            const intersections = findIntersections();
+            intersections.forEach(intersection => {
+                ctx.fillStyle = '#e74c3c';
+                ctx.beginPath();
+                ctx.arc(intersection.x, intersection.y, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                ctx.strokeStyle = '#c0392b';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            });
+        }
+        
+        // Find road intersections
+        function findIntersections() {
+            const intersections = [];
+            const tolerance = 20;
+            
+            for (let i = 0; i < roads.length; i++) {
+                for (let j = i + 1; j < roads.length; j++) {
+                    const road1 = roads[i];
+                    const road2 = roads[j];
+                    
+                    // Check if roads intersect
+                    const intersect = lineIntersection(
+                        road1.x1, road1.y1, road1.x2, road1.y2,
+                        road2.x1, road2.y1, road2.x2, road2.y2,
+                        tolerance
+                    );
+                    
+                    if (intersect) {
+                        intersections.push(intersect);
+                    }
+                }
+            }
+            
+            return intersections;
+        }
+        
+        // Line intersection calculation
+        function lineIntersection(x1, y1, x2, y2, x3, y3, x4, y4, tolerance) {
+            const denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+            if (Math.abs(denom) < 0.001) return null;
+            
+            const t = ((x1 - x3) * (y3 - y4) - (y1 - y3) * (x3 - x4)) / denom;
+            const u = -((x1 - x2) * (y1 - y3) - (y1 - y2) * (x1 - x3)) / denom;
+            
+            if (t >= 0 && t <= 1 && u >= 0 && u <= 1) {
+                return {
+                    x: x1 + t * (x2 - x1),
+                    y: y1 + t * (y2 - y1)
+                };
+            }
+            
+            return null;
+        }
+        
+        // Update statistics
+        function updateStats() {
+            const counts = {cars: 0, trucks: 0, motorcycles: 0, buses: 0};
+            let totalCongestion = 0;
+            
+            vehicles.forEach(v => {
+                switch(v.type) {
+                    case 'Şahsi Araç': counts.cars++; break;
+                    case 'Kamyon': counts.trucks++; break;
+                    case 'Motosiklet': counts.motorcycles++; break;
+                    case 'Otobüs': counts.buses++; break;
+                }
+            });
+            
+            roads.forEach(r => totalCongestion += r.congestion);
+            const avgCongestion = roads.length > 0 ? (totalCongestion / roads.length) * 100 : 0;
+            
+            document.getElementById('active-vehicles').textContent = vehicles.length;
+            document.getElementById('cars-count').textContent = counts.cars;
+            document.getElementById('trucks-count').textContent = counts.trucks;
+            document.getElementById('motorcycles-count').textContent = counts.motorcycles;
+            document.getElementById('buses-count').textContent = counts.buses;
+            document.getElementById('avg-congestion').textContent = avgCongestion.toFixed(1) + '%';
+            document.getElementById('avg-wait-time').textContent = (Math.random() * 10).toFixed(1) + 's';
+        }
+        
+        // Utility functions
+        function updateConnectionStatus(status, text) {
+            const indicator = document.getElementById('connection-indicator');
+            const statusText = document.getElementById('connection-text');
+            
+            indicator.className = 'status-indicator status-' + status;
+            statusText.textContent = text;
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'flex' : 'none';
+        }
+        
+        function logToConsole(message, type = 'info') {
+            const console = document.getElementById('console');
+            const line = document.createElement('div');
+            line.className = `console-line console-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+            
+            // Keep only last 20 lines
+            while (console.children.length > 20) {
+                console.removeChild(console.firstChild);
+            }
+        }
+        
+        function getZoneColor(type) {
+            switch(type) {
+                case 'Şehir Merkezi': return '#9b59b6';
+                case 'Konut Bölgesi': return '#27ae60';
+                case 'Ticaret Bölgesi': return '#3498db';
+                case 'Sanayi Bölgesi': return '#e67e22';
+                default: return '#95a5a6';
+            }
+        }
+        
+        function getRoadColor(type) {
+            switch(type) {
+                case 'Otoyol': return '#34495e';
+                case 'Ana Yol': return '#7f8c8d';
+                case 'Tali Yol': return '#95a5a6';
+                default: return '#bdc3c7';
+            }
+        }
+        
+        function getRoadWidth(type) {
+            switch(type) {
+                case 'Otoyol': return 12;
+                case 'Ana Yol': return 8;
+                case 'Tali Yol': return 5;
+                default: return 3;
+            }
+        }
+        
+        function getCongestionColor(congestion) {
+            if (congestion < 0.3) return '#27ae60';
+            if (congestion < 0.6) return '#f39c12';
+            return '#e74c3c';
+        }
+        
+        function getVehicleColor(type) {
+            switch(type) {
+                case 'Şahsi Araç': return '#3498db';
+                case 'Kamyon': return '#e67e22';
+                case 'Motosiklet': return '#e74c3c';
+                case 'Otobüs': return '#f39c12';
+                default: return '#95a5a6';
+            }
+        }
+        
+        function getVehicleSize(type) {
+            switch(type) {
+                case 'Şahsi Araç': return 12;
+                case 'Kamyon': return 16;
+                case 'Motosiklet': return 8;
+                case 'Otobüs': return 14;
+                default: return 10;
+            }
+        }
+        
+        function getVehicleEmoji(type) {
+            switch(type) {
+                case 'Şahsi Araç': return '🚗';
+                case 'Kamyon': return '🚛';
+                case 'Motosiklet': return '🏍️';
+                case 'Otobüs': return '🚌';
+                default: return '🚗';
+            }
+        }
+    </script>
+</body>
+</html> 

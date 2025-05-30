@@ -1,3 +1,5 @@
+package src.core;
+
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
