@@ -21,9 +21,13 @@ public class Road {
     }
     
     public void removeVehicle(Vehicle vehicle) {
-        vehiclesOnRoad.remove(vehicle);
-        vehicleCount.decrementAndGet();
-        System.out.println("Vehicle " + vehicle.getId() + " left " + name + " (Road " + roadId + "). Current count: " + vehicleCount.get());
+        boolean removed = vehiclesOnRoad.remove(vehicle);
+        if (removed) {
+            vehicleCount.decrementAndGet();
+            System.out.println("Vehicle " + vehicle.getId() + " left " + name + " (Road " + roadId + "). Current count: " + vehicleCount.get());
+        } else {
+            System.out.println("⚠️ Vehicle " + vehicle.getId() + " was not found on " + name + " (Road " + roadId + "). Count unchanged: " + vehicleCount.get());
+        }
     }
     
     public int getVehicleCount() {

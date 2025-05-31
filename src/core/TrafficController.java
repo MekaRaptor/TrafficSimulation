@@ -9,8 +9,8 @@ import java.util.HashMap;
 public class TrafficController {
     // Configuration
     private static final int MAX_VEHICLES = 15;
-    private static final long VEHICLE_SPAWN_INTERVAL = 1000; // 1 second
-    private static final int THREAD_POOL_SIZE = 12;
+    private static final long VEHICLE_SPAWN_INTERVAL = 500; // 1 second
+    private static final int THREAD_POOL_SIZE = 15;
     
     // Threadler
     private final ThreadPoolExecutor vehicleThreadPool;
@@ -214,8 +214,10 @@ public class TrafficController {
      */
     public void vehicleReachedB(Vehicle vehicle) {
         synchronized (activeVehicles) {
-            activeVehicles.remove(vehicle);
-            completedVehicles.add(vehicle);
+            boolean removed = activeVehicles.remove(vehicle);
+            if (removed) {
+                completedVehicles.add(vehicle);
+            }
         }
         
         System.out.println("🏁 Vehicle " + vehicle.getId() + " completed journey. " +
