@@ -186,26 +186,24 @@ public class TrafficSimulationGUI extends Application {
         gc.setFill(Color.BLACK);
         gc.fillText("K2", 495, 305);
         
-        // Roads A to K1
-        gc.setStroke(Color.DARKBLUE);
-        gc.setLineWidth(8);
+        // Roads A to K1 - BLACK and THICKER
+        gc.setStroke(Color.BLACK);
+        gc.setLineWidth(16);
         gc.strokeLine(150, 300, 270, 300);
         
-        // Three parallel roads K1 to K2
-        gc.setStroke(Color.DARKRED);
-        gc.strokeLine(330, 270, 470, 270); // Road 1 (top)
-        gc.strokeLine(330, 300, 470, 300); // Road 2 (middle)  
-        gc.strokeLine(330, 330, 470, 330); // Road 3 (bottom)
+        // Three parallel roads K1 to K2 - BLACK and THICKER with MORE SPACING
+        gc.strokeLine(330, 260, 470, 260); // Road 1 (top) - moved higher
+        gc.strokeLine(330, 300, 470, 300); // Road 2 (middle) - stays same  
+        gc.strokeLine(330, 340, 470, 340); // Road 3 (bottom) - moved lower
         
-        // Roads K2 to B
-        gc.setStroke(Color.DARKGREEN);
+        // Roads K2 to B - BLACK and THICKER
         gc.strokeLine(530, 300, 650, 300);
         
-        // Draw road labels
+        // Draw road labels - REPOSITIONED for new road spacing
         gc.setFill(Color.WHITE);
-        gc.fillText("Road 1", 385, 265);
-        gc.fillText("Road 2", 385, 295); 
-        gc.fillText("Road 3", 385, 325);
+        gc.fillText("Road 1", 385, 235);  // Updated for new road position
+        gc.fillText("Road 2", 385, 275);  // Same position 
+        gc.fillText("Road 3", 385, 355);  // Updated for new road position
         
         // Show road congestion
         drawRoadCongestion();
@@ -215,37 +213,43 @@ public class TrafficSimulationGUI extends Application {
         // Get congestion data from traffic controller
         Map<Integer, Integer> congestion = trafficController.getRoadCongestion();
         
-        // Road 1 congestion
+        // Road 1 congestion - UPDATED for new road position
         int road1Count = congestion.getOrDefault(1, 0);
-        drawCongestionBar(335, 250, road1Count);
+        drawCongestionBar(350, 240, road1Count);
         
-        // Road 2 congestion
+        // Road 2 congestion - Same position
         int road2Count = congestion.getOrDefault(2, 0);
-        drawCongestionBar(335, 280, road2Count);
+        drawCongestionBar(350, 280, road2Count);
         
-        // Road 3 congestion
+        // Road 3 congestion - UPDATED for new road position
         int road3Count = congestion.getOrDefault(3, 0);
-        drawCongestionBar(335, 310, road3Count);
+        drawCongestionBar(350, 320, road3Count);
     }
     
     private void drawCongestionBar(double x, double y, int vehicleCount) {
-        // Background bar
+        // Fix negative values - ensure count is never below 0
+        int safeVehicleCount = Math.max(0, vehicleCount);
+        
+        // Background bar - SMALLER SIZE
         gc.setFill(Color.WHITE);
-        gc.fillRect(x, y, 120, 10);
+        gc.fillRect(x, y, 80, 6);
         gc.setStroke(Color.BLACK);
-        gc.strokeRect(x, y, 120, 10);
+        gc.setLineWidth(1);
+        gc.strokeRect(x, y, 80, 6);
         
         // Congestion level (max 5 vehicles per road)
-        double congestionLevel = Math.min(1.0, vehicleCount / 5.0);
+        double congestionLevel = Math.min(1.0, safeVehicleCount / 5.0);
         Color congestionColor = congestionLevel < 0.3 ? Color.GREEN : 
                               congestionLevel < 0.7 ? Color.ORANGE : Color.RED;
         
         gc.setFill(congestionColor);
-        gc.fillRect(x + 1, y + 1, (120 - 2) * congestionLevel, 8);
+        gc.fillRect(x + 1, y + 1, (80 - 2) * congestionLevel, 4);
         
-        // Vehicle count text
+        // Vehicle count text - SMALLER and positioned better
         gc.setFill(Color.BLACK);
-        gc.fillText(String.valueOf(vehicleCount), x + 125, y + 8);
+        gc.setFont(javafx.scene.text.Font.font(9));
+        gc.fillText(String.valueOf(safeVehicleCount), x + 85, y + 5);
+        gc.setFont(javafx.scene.text.Font.getDefault()); // Reset to default font
     }
     
     private void drawVehicles() {
@@ -255,7 +259,8 @@ public class TrafficSimulationGUI extends Application {
         int activeVehicles = trafficController.getActiveVehicleCount();
         for (int i = 0; i < activeVehicles && i < 15; i++) {
             // Simulate vehicle positions along different road segments
-            double progress = (rand.nextDouble() + i * 0.1) % 1.0;
+            int vehicleId = i;
+            double progress = (System.currentTimeMillis() / 5000.0 + vehicleId * 0.15) % 1.0;
             
             if (progress < 0.2) {
                 // A to K1 segment
@@ -264,7 +269,13 @@ public class TrafficSimulationGUI extends Application {
             } else if (progress < 0.8) {
                 // K1 to K2 segment (on one of three roads)
                 int roadIndex = i % 3;
-                double roadY = 270 + roadIndex * 30;
+                double roadY;
+                switch (roadIndex) {
+                    case 0: roadY = 260; break; // Road 1 (top)
+                    case 1: roadY = 300; break; // Road 2 (middle)
+                    case 2: roadY = 340; break; // Road 3 (bottom)
+                    default: roadY = 300;
+                }
                 double x = 330 + (progress - 0.2) * (140.0 / 0.6);
                 drawVehicle(x, roadY, VehicleType.values()[i % 4]);
             } else {

@@ -1,11 +1,10 @@
 public class SimpleMain {
     public static void main(String[] args) {
-        System.out.println("🚀 Starting Traffic Simulation (Console Version)...");
         
-        // Create traffic controller
+        // traffic controller
         TrafficController controller = new TrafficController();
         
-        // Start simulation
+        // Start 
         controller.startSimulation();
         
         // Let it run for 30 seconds
@@ -16,9 +15,8 @@ public class SimpleMain {
         }
         
         // Stop simulation
-        System.out.println("🛑 Stopping simulation...");
         controller.stopSimulation();
         
-        System.out.println("✅ Simulation completed!");
+        
     }
 } 

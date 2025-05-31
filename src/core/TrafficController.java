@@ -12,14 +12,14 @@ public class TrafficController {
     private static final long VEHICLE_SPAWN_INTERVAL = 1000; // 1 second
     private static final int THREAD_POOL_SIZE = 12;
     
-    // Threading
+    // Threadler
     private final ThreadPoolExecutor vehicleThreadPool;
     private final Thread k1ManagerThread;
     private final Thread k2ManagerThread;
     private final Thread vehicleSpawnerThread;
     private final Thread guiUpdaterThread;
     
-    // Infrastructure
+    // Roads and Intersections
     private final List<Road> roads;
     private final IntersectionManager k1Manager;
     private final IntersectionManager k2Manager;
@@ -48,7 +48,7 @@ public class TrafficController {
         // Initialize vehicle management
         this.activeVehicles = new ArrayList<>();
         this.completedVehicles = new ArrayList<>();
-        this.vehicleIdCounter = new AtomicInteger(1);
+        this.vehicleIdCounter = new AtomicInteger(0);
         
         // Initialize thread pool for vehicles
         this.vehicleThreadPool = new ThreadPoolExecutor(
