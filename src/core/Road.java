@@ -1,47 +1,44 @@
-import java.util.ArrayList;
-import java.util.List;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Road {
-    private final String id;
-    private final List<Vehicle> vehicles = new ArrayList<>();
-    private final int capacity;
-    private final CityMap.Direction direction;
-
-    public Road(String id, int capacity, CityMap.Direction direction) {
-        this.id = id;
-        this.capacity = capacity;
-        this.direction = direction;
+    private final int roadId; // 1, 2, or 3 for the three parallel roads
+    private final String name;
+    private final ConcurrentLinkedQueue<Vehicle> vehiclesOnRoad;
+    private final AtomicInteger vehicleCount;
+    
+    public Road(int roadId, String name) {
+        this.roadId = roadId;
+        this.name = name;
+        this.vehiclesOnRoad = new ConcurrentLinkedQueue<>();
+        this.vehicleCount = new AtomicInteger(0);
     }
-
-    public synchronized boolean addVehicle(Vehicle v) {
-        if (vehicles.size() < capacity) {
-            vehicles.add(v);
-            System.out.println("Vehicle " + v.getVehicleId() + " entered road " + id);
-            return true;
-        } else {
-            System.out.println("Road " + id + " is full.");
-            return false;
-        }
+    
+    public void addVehicle(Vehicle vehicle) {
+        vehiclesOnRoad.offer(vehicle);
+        vehicleCount.incrementAndGet();
+        System.out.println("Vehicle " + vehicle.getId() + " entered " + name + " (Road " + roadId + "). Current count: " + vehicleCount.get());
     }
-
-    public synchronized void removeVehicle(Vehicle v) {
-        vehicles.remove(v);
-        System.out.println("Vehicle " + v.getVehicleId() + " left road " + id);
+    
+    public void removeVehicle(Vehicle vehicle) {
+        vehiclesOnRoad.remove(vehicle);
+        vehicleCount.decrementAndGet();
+        System.out.println("Vehicle " + vehicle.getId() + " left " + name + " (Road " + roadId + "). Current count: " + vehicleCount.get());
     }
-
-    public String getId() {
-        return id;
+    
+    public int getVehicleCount() {
+        return vehicleCount.get();
     }
-
-    public synchronized int getVehicleCount() {
-        return vehicles.size();
+    
+    public int getRoadId() {
+        return roadId;
     }
-
-    public int getCapacity() {
-        return capacity;
+    
+    public String getName() {
+        return name;
     }
-
-    public CityMap.Direction getDirection() {
-        return direction;
+    
+    public ConcurrentLinkedQueue<Vehicle> getVehiclesOnRoad() {
+        return vehiclesOnRoad;
     }
 }
